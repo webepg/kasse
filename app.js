@@ -378,6 +378,7 @@ function renderPlayers() {
 }
 
 function selPlayer(id) {
+  if (!canWrite()) return;
   selId = id;
   renderPlayers();
   updateSelBar();
