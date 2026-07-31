@@ -624,6 +624,7 @@ function checkPin() {
       closeModal("adminModal");
       var action = pendingAction;
       pendingAction = null;
+      isAdmin = true;
       if (action === "zahlung") settlePlayer();
     } else {
       renderAdminContent();
