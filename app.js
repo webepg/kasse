@@ -133,6 +133,9 @@
             return r.text();
           })
           .then(function (t) {
+            if (!canWrite()) {
+              console.log("Vereinskasse: State im Lesemodus geladen", t);
+            }
             var d = JSON.parse(t);
             if (!d || !Array.isArray(d.players)) throw new Error("format");
             S = Object.assign({}, S, { players: d.players });
@@ -1063,7 +1066,7 @@
       // ── INIT ─────────────────────────────────────────────
       loadCfg();
       load();
-      if (!loadPending().length) fetchState();
+      fetchState();
       applyReadOnly();
       renderPlayers();
       renderProdGrid();
