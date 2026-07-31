@@ -29,7 +29,7 @@ function load() {
 var CFG_KEY = "vk5cfg";
 var PENDING_KEY = "vk5pending";
 var DEFAULT_STATE_URL =
-  "https://gist.githubusercontent.com/webepg/ef53e177b49b6ad51b84fa83f2dc96b7/raw/32e33eed3a857bf92a7556e936892fd9935c6707/state";
+  "https://gist.githubusercontent.com/webepg/ef53e177b49b6ad51b84fa83f2dc96b7/raw/59700b650593328c2894a782224eca49e04be747/state";
 var GIST_LOG_FILE = "log";
 var GIST_STATE_FILE = "state";
 var CFG = {
