@@ -804,27 +804,6 @@ function removePlayer(id) {
   toast(p.name + " deaktiviert", "ok");
 }
 
-function resetApp() {
-  localStorage.removeItem("vk5");
-  S = {
-    adminPin: S.adminPin,
-    players: [],
-    products: [],
-    transactions: [],
-  };
-  save();
-  savePending([]);
-  selId = null;
-  cart = [];
-  renderPlayers();
-  renderProdGrid();
-  renderCart();
-  updateSelBar();
-  updateDebtBox();
-  renderAdminContent();
-  toast("App zurückgesetzt ✓", "ok");
-}
-
 function confirmAustreten(id) {
   // Hide all other confirm boxes first
   var boxes = document.querySelectorAll('[id^="confirm-"]');
@@ -879,18 +858,6 @@ function removeProduct(id) {
   renderAdminContent();
   renderProdGrid();
   save();
-}
-
-function changePin() {
-  var np = document.getElementById("newPinInp").value;
-  if (np.length !== 4 || !/^\d+$/.test(np)) {
-    toast("PIN muss 4 Ziffern haben", "err");
-    return;
-  }
-  S.adminPin = np;
-  save();
-  toast("PIN geändert ✓", "ok");
-  document.getElementById("newPinInp").value = "";
 }
 
 // ── ZAHLUNGEN ────────────────────────────────────────
