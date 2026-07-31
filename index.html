@@ -854,11 +854,20 @@
       body.readonly .col-right {
         display: none;
       }
+      body.readonly .col-mid {
+        display: none;
+      }
       body.readonly .columns {
-        grid-template-columns: 280px 1fr;
+        grid-template-columns: 1fr;
       }
       body.readonly .mob-tab[data-tab="cart"] {
         display: none;
+      }
+      body.readonly .mob-tab[data-tab="products"] {
+        display: none;
+      }
+      body.readonly #debtDetail {
+        display: none !important;
       }
 
       /* ── RESPONSIVE: Tablets & Smartphones ────────────── */
