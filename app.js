@@ -31,7 +31,7 @@ function load() {
 var CFG_KEY = "vk5cfg";
 var PENDING_KEY = "vk5pending";
 var DEFAULT_STATE_URL =
-  "https://gist.githubusercontent.com/webepg/882c146cd9ad2fd82b00d1fd0e319fab/raw/68cdbe175fbe9ab2dc74f8c737dc4a5804cc0371/state";
+  "https://gist.githubusercontent.com/webepg/882c146cd9ad2fd82b00d1fd0e319fab/raw/";
 var GIST_LOG_FILE = "log";
 var GIST_STATE_FILE = "state";
 var CFG = {
@@ -333,7 +333,8 @@ function selPlayer(id) {
   renderPlayers();
   updateSelBar();
   updateDebtBox();
-  if (window.innerWidth <= 1023 && getTab() === "players") switchTab("products");
+  if (window.innerWidth <= 1023 && getTab() === "players")
+    switchTab("products");
 }
 
 function switchTab(tab) {
@@ -343,7 +344,10 @@ function switchTab(tab) {
     cols[i].classList.toggle("show", cols[i].matches(map[tab]));
   var tabs = document.querySelectorAll(".mob-tab");
   for (var i = 0; i < tabs.length; i++)
-    tabs[i].classList.toggle("active", tabs[i].getAttribute("data-tab") === tab);
+    tabs[i].classList.toggle(
+      "active",
+      tabs[i].getAttribute("data-tab") === tab,
+    );
 }
 function getTab() {
   var active = document.querySelector(".mob-tab.active");
