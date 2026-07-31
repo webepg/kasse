@@ -30,7 +30,7 @@ var CFG_KEY = "vk5cfg";
 var PENDING_KEY = "vk5pending";
 var DEFAULT_STATE_URL =
   "https://gist.githubusercontent.com/webepg/ef53e177b49b6ad51b84fa83f2dc96b7/raw/32e33eed3a857bf92a7556e936892fd9935c6707/state";
-var GIST_LOG_FILE = "changes";
+var GIST_LOG_FILE = "log";
 var GIST_STATE_FILE = "state";
 var CFG = {
   token: "",
@@ -52,12 +52,7 @@ function saveCfg() {
   } catch (e) {}
 }
 function canWrite() {
-  return !!(
-    CFG.token &&
-    CFG.token.trim() &&
-    CFG.gistLog &&
-    CFG.gistState
-  );
+  return !!(CFG.token && CFG.token.trim() && CFG.gistLog && CFG.gistState);
 }
 function gistId(v) {
   v = (v || "").trim();
@@ -92,11 +87,12 @@ function gistRead(id) {
   return fetch(
     "https://api.github.com/gists/" + encodeURIComponent(gistId(id)),
     {
-    headers: {
-      Authorization: "token " + CFG.token,
-      Accept: "application/vnd.github+json",
+      headers: {
+        Authorization: "token " + CFG.token,
+        Accept: "application/vnd.github+json",
+      },
     },
-  }).then(function (r) {
+  ).then(function (r) {
     if (!r.ok) throw new Error("gist " + r.status);
     return r.json();
   });
@@ -108,13 +104,14 @@ function gistWrite(id, file, content) {
     "https://api.github.com/gists/" + encodeURIComponent(gistId(id)),
     {
       method: "PATCH",
-    headers: {
-      Authorization: "token " + CFG.token,
-      Accept: "application/vnd.github+json",
-      "Content-Type": "application/json",
+      headers: {
+        Authorization: "token " + CFG.token,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  }).then(function (r) {
+  ).then(function (r) {
     if (!r.ok) throw new Error("gist " + r.status);
     return r.json();
   });
