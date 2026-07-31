@@ -54,6 +54,16 @@
         flex-direction: column;
         height: 100vh;
       }
+      @supports (height: 100dvh) {
+        #app {
+          height: 100dvh;
+        }
+      }
+
+      /* MOBILE TABS (nur auf kleinen Bildschirmen sichtbar) */
+      .mob-tabs {
+        display: none;
+      }
 
       /* HEADER */
       header {
@@ -776,6 +786,136 @@
       body.readonly .var-area {
         display: none;
       }
+
+      /* ── RESPONSIVE: Tablets & Smartphones ────────────── */
+      @media (max-width: 1023px) {
+        .mob-tabs {
+          display: flex;
+          flex-shrink: 0;
+          background: var(--black3);
+          border-bottom: 1px solid var(--border2);
+        }
+        .mob-tab {
+          flex: 1;
+          background: none;
+          border: none;
+          border-bottom: 2px solid transparent;
+          color: var(--gray);
+          font-family: "Oswald", sans-serif;
+          font-weight: 600;
+          font-size: 14px;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          padding: 12px 0;
+          cursor: pointer;
+          position: relative;
+        }
+        .mob-tab.active {
+          color: var(--white);
+          border-bottom-color: var(--red);
+        }
+        .mob-tab-badge {
+          background: var(--red);
+          color: #fff;
+          font-family: "Oswald", sans-serif;
+          font-size: 10px;
+          font-weight: 700;
+          min-width: 16px;
+          height: 16px;
+          line-height: 16px;
+          border-radius: 8px;
+          padding: 0 4px;
+          display: inline-block;
+          margin-left: 4px;
+          vertical-align: top;
+        }
+        .columns {
+          display: block;
+          overflow: hidden;
+        }
+        .col {
+          display: none;
+          height: 100%;
+        }
+        .col.show {
+          display: flex;
+        }
+        header {
+          padding: 0 12px;
+        }
+        .hdr-title {
+          font-size: 18px;
+          letter-spacing: 2px;
+        }
+        .btn-hdr {
+          padding: 6px 10px;
+          font-size: 12px;
+        }
+        .hdr-time {
+          font-size: 14px;
+        }
+        .col-body,
+        .cart-list {
+          -webkit-overflow-scrolling: touch;
+        }
+        .modal {
+          padding: 16px;
+          max-width: 100%;
+        }
+        .sel-bar {
+          padding: 10px 12px;
+        }
+        .prod-grid {
+          grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+          gap: 8px;
+          padding: 10px;
+        }
+        .prod-btn {
+          padding: 12px 8px;
+          min-height: 72px;
+        }
+        .prod-btn:active {
+          transform: scale(0.94);
+        }
+        .pl-row {
+          padding: 14px 12px;
+        }
+        .cart-row {
+          padding: 12px 12px;
+        }
+        .btn-buchen {
+          padding: 16px;
+        }
+        .btn-settle {
+          padding: 14px;
+        }
+        .btn-hdr,
+        .mob-tab,
+        .pl-row,
+        .prod-btn,
+        .cart-del {
+          touch-action: manipulation;
+        }
+      }
+
+      /* Smartphones (Hochformat) – kompakter */
+      @media (max-width: 480px) {
+        .hdr-time {
+          display: none;
+        }
+        .hdr-title {
+          font-size: 16px;
+        }
+        .search-bar {
+          padding: 8px 10px;
+        }
+        .var-row {
+          flex-wrap: wrap;
+        }
+        .var-row input[type="text"] {
+          flex: 1 1 100% !important;
+        }
+      }
     </style>
   </head>
   <body>
@@ -791,6 +931,19 @@
           <button class="btn-hdr" onclick="openAdmin()">⚙️ Admin</button>
         </div>
       </header>
+
+      <div class="mob-tabs" id="mobTabs">
+        <button class="mob-tab active" data-tab="players" onclick="switchTab('players')">
+          Spieler
+        </button>
+        <button class="mob-tab" data-tab="products" onclick="switchTab('products')">
+          Getränke
+        </button>
+        <button class="mob-tab" data-tab="cart" onclick="switchTab('cart')">
+          Warenkorb
+          <span class="mob-tab-badge" id="mobCartBadge" style="display:none">0</span>
+        </button>
+      </div>
 
       <div class="columns">
         <!-- LINKS: SPIELER -->

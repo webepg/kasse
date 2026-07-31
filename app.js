@@ -326,6 +326,21 @@ function selPlayer(id) {
   renderPlayers();
   updateSelBar();
   updateDebtBox();
+  if (window.innerWidth <= 1023 && getTab() === "players") switchTab("products");
+}
+
+function switchTab(tab) {
+  var map = { players: ".col-left", products: ".col-mid", cart: ".col-right" };
+  var cols = document.querySelectorAll(".col");
+  for (var i = 0; i < cols.length; i++)
+    cols[i].classList.toggle("show", cols[i].matches(map[tab]));
+  var tabs = document.querySelectorAll(".mob-tab");
+  for (var i = 0; i < tabs.length; i++)
+    tabs[i].classList.toggle("active", tabs[i].getAttribute("data-tab") === tab);
+}
+function getTab() {
+  var active = document.querySelector(".mob-tab.active");
+  return active ? active.getAttribute("data-tab") : "players";
 }
 
 function updateSelBar() {
@@ -542,6 +557,13 @@ function renderCart() {
     el.innerHTML = html;
   }
   document.getElementById("cartTotal").textContent = fmt(cartTotal());
+  var badge = document.getElementById("mobCartBadge");
+  if (badge) {
+    var n = 0;
+    for (var i = 0; i < cart.length; i++) n += cart[i].qty;
+    badge.style.display = n ? "inline-block" : "none";
+    badge.textContent = n;
+  }
 }
 
 function doPay() {
@@ -1029,6 +1051,7 @@ loadCfg();
 load();
 fetchState();
 applyReadOnly();
+switchTab(getTab());
 renderPlayers();
 renderProdGrid();
 renderCart();
