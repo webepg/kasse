@@ -52,7 +52,21 @@ function saveCfg() {
   } catch (e) {}
 }
 function canWrite() {
-  return !!(CFG.token && CFG.token.trim() && CFG.gistLog && CFG.gistState);
+  return !!(
+    CFG.token &&
+    CFG.token.trim() &&
+    CFG.gistLog &&
+    CFG.gistState
+  );
+}
+function gistId(v) {
+  v = (v || "").trim();
+  if (!v) return "";
+  var m = v.match(/gist\.github\.com\/[^/]+\/([0-9a-f]+)/i);
+  if (m) return m[1];
+  var m2 = v.match(/([0-9a-f]{20,})/i);
+  if (m2) return m2[1];
+  return v;
 }
 function loadPending() {
   try {
@@ -75,7 +89,9 @@ function queueTransaction(t) {
 }
 
 function gistRead(id) {
-  return fetch("https://api.github.com/gists/" + encodeURIComponent(id), {
+  return fetch(
+    "https://api.github.com/gists/" + encodeURIComponent(gistId(id)),
+    {
     headers: {
       Authorization: "token " + CFG.token,
       Accept: "application/vnd.github+json",
@@ -88,8 +104,10 @@ function gistRead(id) {
 function gistWrite(id, file, content) {
   var body = { files: {} };
   body.files[file] = { content: content };
-  return fetch("https://api.github.com/gists/" + encodeURIComponent(id), {
-    method: "PATCH",
+  return fetch(
+    "https://api.github.com/gists/" + encodeURIComponent(gistId(id)),
+    {
+      method: "PATCH",
     headers: {
       Authorization: "token " + CFG.token,
       Accept: "application/vnd.github+json",
@@ -174,8 +192,8 @@ function populateConfig() {
 
 function saveConfig() {
   CFG.token = document.getElementById("cfgToken").value.trim();
-  CFG.gistLog = document.getElementById("cfgGistLog").value.trim();
-  CFG.gistState = document.getElementById("cfgGistState").value.trim();
+  CFG.gistLog = gistId(document.getElementById("cfgGistLog").value);
+  CFG.gistState = gistId(document.getElementById("cfgGistState").value);
   saveCfg();
   applyReadOnly();
   renderSyncStatus();
