@@ -11,11 +11,13 @@ var isAdmin = false;
 var pendingAction = null;
 
 function save() {
+  if (!canWrite()) return;
   try {
     localStorage.setItem("vk5", JSON.stringify(S));
   } catch (e) {}
 }
 function load() {
+  if (!canWrite()) return;
   try {
     var d = localStorage.getItem("vk5");
     if (d) {
