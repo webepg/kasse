@@ -41,6 +41,7 @@ var CFG = {
   stateUrl: DEFAULT_STATE_URL,
 };
 var syncBusy = false;
+var abrBusy = false;
 
 function loadCfg() {
   try {
@@ -114,6 +115,22 @@ function gistWrite(id, file, content) {
       body: JSON.stringify(body),
     },
   ).then(function (r) {
+    if (!r.ok) throw new Error("gist " + r.status);
+    return r.json();
+  });
+}
+function gistCreate(desc, file, content) {
+  var body = { description: desc, public: false, files: {} };
+  body.files[file] = { content: content };
+  return fetch("https://api.github.com/gists", {
+    method: "POST",
+    headers: {
+      Authorization: "token " + CFG.token,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  }).then(function (r) {
     if (!r.ok) throw new Error("gist " + r.status);
     return r.json();
   });
@@ -760,6 +777,7 @@ function checkPin() {
       pendingAction = null;
       isAdmin = true;
       if (action === "zahlung") settlePlayer();
+      else if (action === "abrechnung") runAbrechnung();
     } else {
       renderAdminContent();
       // Auto-close after short delay when opened via admin button
@@ -768,6 +786,94 @@ function checkPin() {
     document.getElementById("pinErr").textContent = "❌ Falscher PIN";
     document.getElementById("pinInput").value = "";
   }
+}
+
+function runAbrechnung() {
+  if (abrBusy) return;
+  if (!canWrite()) {
+    toast("Keine Schreibrechte – Sync im Admin einrichten", "err");
+    return;
+  }
+  var pending = loadPending();
+  var merged = [];
+  var consolidated = [];
+  abrBusy = true;
+  gistRead(CFG.gistLog)
+    .then(function (g) {
+      var log = [];
+      var f = g.files[GIST_LOG_FILE];
+      if (f && f.content) {
+        try {
+          log = JSON.parse(f.content);
+        } catch (e) {
+          log = [];
+        }
+      }
+      if (!Array.isArray(log)) log = [];
+      var have = {};
+      for (var i = 0; i < log.length; i++) {
+        if (log[i] && log[i].id != null) have[log[i].id] = 1;
+      }
+      merged = log.slice();
+      for (var i = 0; i < pending.length; i++) {
+        if (!(pending[i].id in have)) merged.push(pending[i]);
+      }
+      S.transactions = merged;
+      applyFinances();
+      return gistCreate(
+        "Kasse Abrechnung " + tsStamp(),
+        GIST_LOG_FILE,
+        JSON.stringify(merged, null, 2),
+      );
+    })
+    .then(function () {
+      var now = new Date().toISOString();
+      var sorted = S.players.slice().sort(function (a, b) {
+        return a.name.localeCompare(b.name);
+      });
+      for (var i = 0; i < sorted.length; i++) {
+        var p = sorted[i];
+        var d = Math.round((p.debt || 0) * 100) / 100;
+        if (d === 0) continue;
+        consolidated.push({
+          id: uid(),
+          type: "getraenke",
+          playerId: p.id,
+          playerName: p.name,
+          items: "Abrechnung",
+          amount: d,
+          method: d < 0 ? "guthaben" : "aufschreiben",
+          paid: d < 0,
+          date: now,
+        });
+      }
+      return Promise.all([
+        gistWrite(CFG.gistLog, GIST_LOG_FILE, JSON.stringify(consolidated)),
+        gistWrite(
+          CFG.gistState,
+          GIST_STATE_FILE,
+          JSON.stringify(buildSnapshot(consolidated)),
+        ),
+      ]);
+    })
+    .then(function () {
+      abrBusy = false;
+      savePending([]);
+      S.transactions = consolidated;
+      applyFinances();
+      save();
+      renderPlayers();
+      renderProdGrid();
+      renderCart();
+      updateSelBar();
+      updateDebtBox();
+      renderSyncStatus();
+      toast("Abrechnung erstellt & Log konsolidiert ✓", "ok");
+    })
+    .catch(function () {
+      abrBusy = false;
+      toast("Abrechnung fehlgeschlagen", "err");
+    });
 }
 
 function renderAdminContent() {
@@ -1134,6 +1240,25 @@ function fmtDate(iso) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+function tsStamp() {
+  var n = new Date();
+  var p2 = function (x) {
+    return ("0" + x).slice(-2);
+  };
+  return (
+    n.getFullYear() +
+    "-" +
+    p2(n.getMonth() + 1) +
+    "-" +
+    p2(n.getDate()) +
+    "_" +
+    p2(n.getHours()) +
+    "-" +
+    p2(n.getMinutes()) +
+    "-" +
+    p2(n.getSeconds())
+  );
 }
 function esc(s) {
   return (s || "")
