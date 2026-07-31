@@ -149,8 +149,10 @@ function applyFinances() {
   for (var i = 0; i < S.players.length; i++) {
     var p = S.players[i];
     var rec = fin[p.id];
-    p.debt = rec ? rec.debt : 0;
-    p.lastPaid = rec ? rec.lastPaid : null;
+    if (rec) {
+      p.debt = rec.debt;
+      p.lastPaid = rec.lastPaid;
+    }
   }
 }
 
@@ -165,8 +167,8 @@ function buildSnapshot(transactions) {
       return {
         id: p.id,
         name: p.name,
-        debt: rec ? rec.debt : 0,
-        lastPaid: rec ? rec.lastPaid : null,
+        debt: rec ? rec.debt : p.debt || 0,
+        lastPaid: rec ? rec.lastPaid : p.lastPaid || null,
         active: p.active !== false,
       };
     }),
