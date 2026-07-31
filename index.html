@@ -778,12 +778,86 @@
       .hidden {
         display: none !important;
       }
+      /* SCHULDEN-DETAILS (Getränke-Tab) */
+      .debt-detail {
+        border-top: 2px solid var(--border2);
+        margin-top: 14px;
+        padding: 12px 14px 16px;
+      }
+      .dd-hd {
+        font-family: "Oswald", sans-serif;
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--gray);
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--border);
+      }
+      .dd-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 7px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+      }
+      .dd-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .dd-items {
+        font-weight: 500;
+      }
+      .dd-date {
+        font-size: 11px;
+        color: var(--gray);
+        margin-top: 2px;
+      }
+      .dd-amt {
+        font-family: "Oswald", sans-serif;
+        font-weight: 600;
+        font-size: 14px;
+        color: #ff6b6b;
+        white-space: nowrap;
+      }
+      .dd-empty {
+        font-size: 12px;
+        color: var(--gray2);
+        padding: 6px 0;
+      }
+      .dd-total-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 10px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--gray);
+        font-family: "Oswald", sans-serif;
+        font-weight: 600;
+      }
+      #debtDetailTotal {
+        font-size: 17px;
+        color: #ff6b6b;
+      }
       /* READ-ONLY (kein Token hinterlegt) */
       body.readonly .prod-btn,
       body.readonly .btn-buchen,
       body.readonly .btn-leeren,
       body.readonly .btn-settle,
       body.readonly .var-area {
+        display: none;
+      }
+      body.readonly .col-right {
+        display: none;
+      }
+      body.readonly .columns {
+        grid-template-columns: 280px 1fr;
+      }
+      body.readonly .mob-tab[data-tab="cart"] {
         display: none;
       }
 
@@ -1006,6 +1080,15 @@
               >
                 Negativer Betrag = Guthaben (z.B. -5,00 wenn Spieler was
                 ausgelegt hat)
+              </div>
+            </div>
+
+            <div class="debt-detail" id="debtDetail" style="display: none">
+              <div class="dd-hd">Offene Schulden</div>
+              <div id="debtDetailList"></div>
+              <div class="dd-total-row">
+                <span>Summe</span>
+                <span id="debtDetailTotal"></span>
               </div>
             </div>
           </div>

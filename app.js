@@ -133,6 +133,7 @@ function buildSnapshot() {
       };
     }),
     products: S.products,
+    transactions: S.transactions,
   };
 }
 
@@ -151,6 +152,8 @@ function fetchState() {
       if (!d || !Array.isArray(d.players)) throw new Error("format");
       S = Object.assign({}, S, { players: d.players });
       if (Array.isArray(d.products)) S.products = d.products;
+      if (!canWrite() && Array.isArray(d.transactions))
+        S.transactions = d.transactions;
       save();
       renderPlayers();
       renderProdGrid();
@@ -161,7 +164,9 @@ function fetchState() {
 }
 
 function applyReadOnly() {
-  document.body.classList.toggle("readonly", !canWrite());
+  var ro = !canWrite();
+  document.body.classList.toggle("readonly", ro);
+  if (ro) switchTab("players");
 }
 
 function renderSyncStatus() {
@@ -362,6 +367,7 @@ function updateSelBar() {
 }
 
 function updateDebtBox() {
+  renderDebtDetail();
   var box = document.getElementById("debtBox");
   if (!selId) {
     box.style.display = "none";
@@ -389,6 +395,54 @@ function updateDebtBox() {
   } else {
     bs.style.display = "none";
   }
+}
+
+function renderDebtDetail() {
+  var el = document.getElementById("debtDetail");
+  if (!el) return;
+  var show = false;
+  if (selId) {
+    var p = getPlayer(selId);
+    show = !!p && p.debt > 0;
+  }
+  if (!show) {
+    el.style.display = "none";
+    return;
+  }
+  var rows = [];
+  for (var i = 0; i < S.transactions.length; i++) {
+    var t = S.transactions[i];
+    if (t.playerId === p.id && t.type === "getraenke" && !t.paid) rows.push(t);
+  }
+  rows.sort(function (a, b) {
+    return new Date(b.date) - new Date(a.date);
+  });
+  var html = "";
+  if (rows.length === 0) {
+    html += '<div class="dd-empty">Keine Einzelbuchungen verfügbar</div>';
+  }
+  var total = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var t = rows[i];
+    total += t.amount;
+    html +=
+      '<div class="dd-row">' +
+      '<div class="dd-info">' +
+      '<div class="dd-items">' +
+      esc(t.items || t.playerName) +
+      "</div>" +
+      '<div class="dd-date">' +
+      fmtDate(t.date) +
+      "</div>" +
+      "</div>" +
+      '<span class="dd-amt">' +
+      fmt(t.amount) +
+      "</span>" +
+      "</div>";
+  }
+  el.style.display = "block";
+  document.getElementById("debtDetailList").innerHTML = html;
+  document.getElementById("debtDetailTotal").textContent = fmt(total);
 }
 
 function settlePlayer() {
