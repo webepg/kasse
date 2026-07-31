@@ -2,37 +2,8 @@
       // ── STATE ───────────────────────────────────────────
       var S = {
         adminPin: "1234",
-        players: [
-          {
-            id: 1,
-            name: "Max Mustermann",
-            debt: 0,
-            lastPaid: null,
-            active: true,
-          },
-          {
-            id: 2,
-            name: "Hans Beispiel",
-            debt: 0,
-            lastPaid: null,
-            active: true,
-          },
-          {
-            id: 3,
-            name: "Stefan Meier",
-            debt: 0,
-            lastPaid: null,
-            active: true,
-          },
-        ],
-        products: [
-          { id: 1, name: "Bier 0,5l", price: 2.5 },
-          { id: 2, name: "Radler", price: 2.5 },
-          { id: 3, name: "Wasser", price: 1.5 },
-          { id: 4, name: "Cola", price: 2.0 },
-          { id: 5, name: "Schnaps", price: 1.5 },
-          { id: 6, name: "Kaffee", price: 1.5 },
-        ],
+        players: [],
+        products: [],
         transactions: [],
       };
       var cart = [];
@@ -201,8 +172,6 @@
         if (l) l.value = CFG.gistLog;
         var s = document.getElementById("cfgGistState");
         if (s) s.value = CFG.gistState;
-        var u = document.getElementById("cfgStateUrl");
-        if (u) u.value = CFG.stateUrl;
         renderSyncStatus();
       }
 
@@ -210,7 +179,6 @@
         CFG.token = document.getElementById("cfgToken").value.trim();
         CFG.gistLog = document.getElementById("cfgGistLog").value.trim();
         CFG.gistState = document.getElementById("cfgGistState").value.trim();
-        CFG.stateUrl = document.getElementById("cfgStateUrl").value.trim();
         saveCfg();
         applyReadOnly();
         renderSyncStatus();
@@ -1032,131 +1000,6 @@
             "</div>";
         }
         document.getElementById("zList").innerHTML = html;
-      }
-
-      function backupData() {
-        var backup = {
-          version: 1,
-          date: new Date().toISOString(),
-          data: S,
-        };
-        var json = JSON.stringify(backup, null, 2);
-        var a = document.createElement("a");
-        var date = new Date().toISOString().slice(0, 10);
-        a.href = URL.createObjectURL(
-          new Blob([json], { type: "application/json" }),
-        );
-        a.download = "vereinskasse_backup_" + date + ".json";
-        a.click();
-        toast("Sicherung gespeichert ✓", "ok");
-      }
-
-      function restoreData(event) {
-        var file = event.target.files[0];
-        if (!file) return;
-        var reader = new FileReader();
-        reader.onload = function (e) {
-          try {
-            var backup = JSON.parse(e.target.result);
-            if (!backup.data || !backup.data.players) {
-              toast("Ungültige Sicherungsdatei", "err");
-              return;
-            }
-            S = Object.assign({}, S, backup.data);
-            save();
-            selId = null;
-            cart = [];
-            renderPlayers();
-            renderProdGrid();
-            renderCart();
-            updateSelBar();
-            updateDebtBox();
-            renderAdminContent();
-            var d = new Date(backup.date).toLocaleDateString("de-DE");
-            document.getElementById("backupInfo").textContent =
-              "✓ Sicherung vom " + d + " wiederhergestellt";
-            toast("Daten wiederhergestellt ✓", "ok");
-          } catch (err) {
-            toast("Fehler beim Laden der Sicherung", "err");
-          }
-        };
-        reader.readAsText(file);
-        event.target.value = "";
-      }
-
-      function exportZahlungen() {
-        var von = document.getElementById("filterVon").value;
-        var bis = document.getElementById("filterBis").value;
-        var vonD = von ? new Date(von) : null;
-        var bisD = bis ? new Date(bis + "T23:59:59") : null;
-        var zahlungen = [];
-        for (var i = 0; i < S.transactions.length; i++) {
-          var t = S.transactions[i];
-          if (t.type !== "getraenke") continue;
-          if (!t.settled && !(t.paid && t.method !== "aufschreiben")) continue;
-          var d = new Date(t.date);
-          if (vonD && d < vonD) continue;
-          if (bisD && d > bisD) continue;
-          zahlungen.push(t);
-        }
-        zahlungen.sort(function (a, b) {
-          return new Date(a.date) - new Date(b.date);
-        });
-        var rows = [["Datum", "Spieler", "Betrag", "Methode"]];
-        var total = 0;
-        for (var i = 0; i < zahlungen.length; i++) {
-          var t = zahlungen[i];
-          rows.push([
-            fmtDate(t.date),
-            t.playerName,
-            t.amount.toFixed(2),
-            t.method,
-          ]);
-          total += t.amount;
-        }
-        rows.push(["", "GESAMT", total.toFixed(2), ""]);
-        dlCSV(
-          rows,
-          "zahlungen" +
-            (von ? "_" + von : "") +
-            (bis ? "_bis_" + bis : "") +
-            ".csv",
-        );
-      }
-
-      function exportAll() {
-        var rows = [
-          ["Datum", "Spieler", "Artikel", "Betrag", "Methode", "Bezahlt"],
-        ];
-        for (var i = 0; i < S.transactions.length; i++) {
-          var t = S.transactions[i];
-          rows.push([
-            fmtDate(t.date),
-            t.playerName,
-            t.items || "",
-            t.amount.toFixed(2),
-            t.method,
-            t.paid ? "ja" : "nein",
-          ]);
-        }
-        dlCSV(
-          rows,
-          "vereinskasse_alle_" + new Date().toISOString().slice(0, 10) + ".csv",
-        );
-      }
-
-      function dlCSV(rows, fname) {
-        var csv = rows
-          .map(function (r) {
-            return r.join(";");
-          })
-          .join("\n");
-        var a = document.createElement("a");
-        a.href = URL.createObjectURL(
-          new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" }),
-        );
-        a.download = fname;
-        a.click();
       }
 
       // ── UTILS ────────────────────────────────────────────

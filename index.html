@@ -963,15 +963,6 @@
                 style="flex: 1"
               />
             </div>
-            <div class="m-row">
-              <input
-                type="text"
-                id="cfgStateUrl"
-                class="inp"
-                placeholder="State-URL (Raw)"
-                style="flex: 1"
-              />
-            </div>
             <div
               style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px"
             >
@@ -1052,45 +1043,6 @@
                 Speichern
               </button>
             </div>
-          </div>
-
-          <div class="m-section">
-            <div class="m-title">Datensicherung</div>
-            <div
-              style="font-size: 13px; color: var(--gray); margin-bottom: 10px"
-            >
-              Sicherung als Datei speichern und bei Bedarf wiederherstellen.
-              Empfehlung: nach jedem Spieltag sichern.
-            </div>
-            <div
-              style="
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 8px;
-                margin-bottom: 8px;
-              "
-            >
-              <button class="btn btn-ghost btn-block" onclick="backupData()">
-                💾 Sicherung speichern
-              </button>
-              <label
-                class="btn btn-ghost btn-block"
-                style="cursor: pointer; text-align: center"
-              >
-                📂 Sicherung laden
-                <input
-                  type="file"
-                  id="restoreFile"
-                  accept=".json"
-                  style="display: none"
-                  onchange="restoreData(event)"
-                />
-              </label>
-            </div>
-            <div
-              id="backupInfo"
-              style="font-size: 12px; color: var(--gray)"
-            ></div>
           </div>
 
           <div class="m-section">
@@ -1187,19 +1139,6 @@
               id="zList"
               style="max-height: 220px; overflow-y: auto; margin-bottom: 10px"
             ></div>
-            <div
-              style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px"
-            >
-              <button
-                class="btn btn-ghost btn-block"
-                onclick="exportZahlungen()"
-              >
-                📥 Zahlungen CSV
-              </button>
-              <button class="btn btn-ghost btn-block" onclick="exportAll()">
-                📥 Alle Buchungen
-              </button>
-            </div>
           </div>
         </div>
       </div>
