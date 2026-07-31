@@ -119,21 +119,59 @@ function gistWrite(id, file, content) {
   });
 }
 
-function buildSnapshot() {
+function computePlayerFinances(transactions) {
+  var out = {};
+  var sorted = (transactions || []).slice().sort(function (a, b) {
+    return new Date(a.date) - new Date(b.date);
+  });
+  for (var i = 0; i < sorted.length; i++) {
+    var t = sorted[i];
+    if (!t || t.type !== "getraenke") continue;
+    var rec = out[t.playerId] || { debt: 0, lastPaid: null };
+    if (t.settled) {
+      rec.debt = 0;
+      rec.lastPaid = t.date;
+    } else if (t.amount > 0) {
+      if (!t.paid) {
+        rec.debt = Math.round((rec.debt + t.amount) * 100) / 100;
+        if (!rec.lastPaid) rec.lastPaid = t.date;
+      }
+    } else {
+      rec.debt = Math.round((rec.debt + t.amount) * 100) / 100;
+    }
+    out[t.playerId] = rec;
+  }
+  return out;
+}
+
+function applyFinances() {
+  var fin = computePlayerFinances(S.transactions);
+  for (var i = 0; i < S.players.length; i++) {
+    var p = S.players[i];
+    var rec = fin[p.id];
+    p.debt = rec ? rec.debt : 0;
+    p.lastPaid = rec ? rec.lastPaid : null;
+  }
+}
+
+function buildSnapshot(transactions) {
+  var tr = transactions || S.transactions;
+  var fin = computePlayerFinances(tr);
   return {
     version: 1,
     updated: new Date().toISOString(),
     players: S.players.map(function (p) {
+      var rec = fin[p.id];
       return {
         id: p.id,
         name: p.name,
-        debt: p.debt,
-        lastPaid: p.lastPaid || null,
+        debt: rec ? rec.debt : 0,
+        lastPaid: rec ? rec.lastPaid : null,
         active: p.active !== false,
       };
     }),
     products: S.products,
-    transactions: S.transactions,
+    transactions: tr,
   };
 }
 
@@ -152,8 +190,9 @@ function fetchState() {
       if (!d || !Array.isArray(d.players)) throw new Error("format");
       S = Object.assign({}, S, { players: d.players });
       if (Array.isArray(d.products)) S.products = d.products;
-      if (!canWrite() && Array.isArray(d.transactions))
+      if (Array.isArray(d.transactions) && S.transactions.length === 0)
         S.transactions = d.transactions;
+      applyFinances();
       save();
       renderPlayers();
       renderProdGrid();
@@ -219,6 +258,7 @@ function syncNow(silent) {
     return;
   }
   syncBusy = true;
+  var merged = [];
   gistRead(CFG.gistLog)
     .then(function (g) {
       var log = [];
@@ -239,18 +279,27 @@ function syncNow(silent) {
       for (var i = 0; i < pending.length; i++) {
         if (!(pending[i].id in have)) add.push(pending[i]);
       }
+      merged = log.concat(add);
       return Promise.all([
-        gistWrite(CFG.gistLog, GIST_LOG_FILE, JSON.stringify(log.concat(add))),
+        gistWrite(CFG.gistLog, GIST_LOG_FILE, JSON.stringify(merged)),
         gistWrite(
           CFG.gistState,
           GIST_STATE_FILE,
-          JSON.stringify(buildSnapshot()),
+          JSON.stringify(buildSnapshot(merged)),
         ),
       ]);
     })
     .then(function () {
       syncBusy = false;
       savePending([]);
+      S.transactions = merged;
+      applyFinances();
+      save();
+      renderPlayers();
+      renderProdGrid();
+      renderCart();
+      updateSelBar();
+      updateDebtBox();
       renderSyncStatus();
       toast("Sync erfolgreich ✓", "ok");
     })
@@ -461,7 +510,7 @@ function settlePlayer() {
   if (!selId) return;
   var p = getPlayer(selId);
   var t = {
-    id: Date.now(),
+    id: uid(),
     type: "getraenke",
     playerId: p.id,
     playerName: p.name,
@@ -553,7 +602,7 @@ function addVarItem() {
     return;
   }
   cart.push({
-    id: Date.now(),
+    id: uid(),
     name: nm,
     price: pr,
     qty: 1,
@@ -648,7 +697,7 @@ function doPay() {
     .join(", ");
   var isGuthaben = total < 0;
   var t = {
-    id: Date.now(),
+    id: uid(),
     type: "getraenke",
     playerId: p.id,
     playerName: p.name,
@@ -848,7 +897,7 @@ function addPlayer() {
     }
   }
   S.players.push({
-    id: Date.now(),
+    id: uid(),
     name: nm,
     debt: 0,
     lastPaid: null,
@@ -922,7 +971,7 @@ function addProduct() {
   var nm = document.getElementById("newPrNm").value.trim();
   var pr = parseFloat(document.getElementById("newPrPr").value);
   if (!nm || isNaN(pr) || pr <= 0) return;
-  S.products.push({ id: Date.now(), name: nm, price: pr });
+  S.products.push({ id: uid(), name: nm, price: pr });
   document.getElementById("newPrNm").value = "";
   document.getElementById("newPrPr").value = "";
   renderAdminContent();
@@ -1049,6 +1098,21 @@ function renderZahlungen() {
 }
 
 // ── UTILS ────────────────────────────────────────────
+function uid() {
+  if (window.crypto && window.crypto.getRandomValues) {
+    var a = new Uint32Array(2);
+    window.crypto.getRandomValues(a);
+    return (
+      a[0].toString(36) +
+      a[1].toString(36) +
+      Date.now().toString(36)
+    );
+  }
+  return (
+    Date.now().toString(36) +
+    Math.random().toString(36).slice(2, 10)
+  );
+}
 function getPlayer(id) {
   for (var i = 0; i < S.players.length; i++) {
     if (S.players[i].id === id) return S.players[i];
@@ -1109,6 +1173,7 @@ document.querySelectorAll(".overlay").forEach(function (o) {
 // ── INIT ─────────────────────────────────────────────
 loadCfg();
 load();
+applyFinances();
 fetchState();
 applyReadOnly();
 switchTab(getTab());
