@@ -39,6 +39,7 @@ var CFG = {
   gistLog: "",
   gistState: "",
   stateUrl: DEFAULT_STATE_URL,
+  stateUser: "",
 };
 var syncBusy = false;
 var abrBusy = false;
@@ -65,6 +66,24 @@ function gistId(v) {
   var m2 = v.match(/([0-9a-f]{20,})/i);
   if (m2) return m2[1];
   return v;
+}
+function gistUser(v) {
+  v = (v || "").trim();
+  if (!v) return "";
+  var m = v.match(/gist\.github(?:usercontent)?\.com\/([^/]+)\/([0-9a-f]{20,})/i);
+  return m ? m[1] : "";
+}
+function buildStateUrl(id, user) {
+  id = gistId(id);
+  if (!id || !user) return "";
+  return (
+    "https://gist.githubusercontent.com/" +
+    user +
+    "/" +
+    id +
+    "/raw/" +
+    GIST_STATE_FILE
+  );
 }
 function loadPending() {
   try {
@@ -218,7 +237,17 @@ function fetchState() {
       updateSelBar();
       updateDebtBox();
     })
-    .catch(function () {});
+    .catch(function (e) {
+      console.warn("fetchState fehlgeschlagen:", e);
+      if (!canWrite() && CFG.gistState) {
+        toast(
+          "State konnte nicht geladen werden (" +
+            (e && e.message ? e.message : "Fehler") +
+            ") – URL im Admin prüfen",
+          "err",
+        );
+      }
+    });
 }
 
 function applyReadOnly() {
@@ -231,7 +260,7 @@ function renderSyncStatus() {
   var el = document.getElementById("syncInfo");
   if (!el) return;
   var p = loadPending();
-  el.innerHTML =
+  var html =
     "Token: " +
     (canWrite() ? "✓" : "–") +
     " · Log-Gist: " +
@@ -240,6 +269,13 @@ function renderSyncStatus() {
     (CFG.gistState || "–") +
     "<br>Ausstehende Buchungen: " +
     p.length;
+  if (CFG.gistState) {
+    html += "<br>State-URL: " + (CFG.stateUrl || "–");
+    if (!CFG.stateUrl)
+      html +=
+        '<br><span style="color:#ff9999;">Bitte vollständige Gist-URL eintragen (nicht nur die ID), damit der Lesemodus den State laden kann.</span>';
+  }
+  el.innerHTML = html;
 }
 
 function populateConfig() {
@@ -253,9 +289,13 @@ function populateConfig() {
 }
 
 function saveConfig() {
+  var stateInput = document.getElementById("cfgGistState").value.trim();
+  var logInput = document.getElementById("cfgGistLog").value.trim();
   CFG.token = document.getElementById("cfgToken").value.trim();
-  CFG.gistLog = gistId(document.getElementById("cfgGistLog").value);
-  CFG.gistState = gistId(document.getElementById("cfgGistState").value);
+  CFG.gistLog = gistId(logInput);
+  CFG.gistState = gistId(stateInput);
+  CFG.stateUser = gistUser(stateInput) || gistUser(logInput);
+  CFG.stateUrl = buildStateUrl(CFG.gistState, CFG.stateUser) || CFG.stateUrl;
   saveCfg();
   applyReadOnly();
   renderSyncStatus();
@@ -1301,6 +1341,8 @@ document.querySelectorAll(".overlay").forEach(function (o) {
 // ── INIT ─────────────────────────────────────────────
 loadCfg();
 load();
+if (CFG.gistState && CFG.stateUser)
+  CFG.stateUrl = buildStateUrl(CFG.gistState, CFG.stateUser);
 applyFinances();
 fetchState();
 applyReadOnly();
