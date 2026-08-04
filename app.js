@@ -38,7 +38,6 @@ var CFG = {
   token: "",
   gistLog: "",
   gistState: "",
-  logUser: "",
   stateUrl: DEFAULT_STATE_URL,
   stateUser: "",
 };
@@ -223,6 +222,8 @@ function stateRawUrl() {
   } else if (CFG.stateUrl !== DEFAULT_STATE_URL) {
     CFG.stateUrl = DEFAULT_STATE_URL;
   }
+  if (!CFG.stateUser)
+    CFG.stateUser = gistUser(CFG.stateUrl) || gistUser(DEFAULT_STATE_URL);
   if (CFG.stateUrl !== before) saveCfg();
   return CFG.stateUrl || "";
 }
@@ -246,64 +247,27 @@ function parseLog(t) {
   }
 }
 
-function logRawUrl() {
-  if (!CFG.gistLog) return "";
-  if (!CFG.logUser) {
-    var u = gistUser(CFG.gistLog) || (CFG.stateUser || "");
-    if (u) {
-      CFG.logUser = u;
-      saveCfg();
-    }
-  }
-  if (!CFG.logUser) return "";
-  return (
-    "https://gist.githubusercontent.com/" +
-    CFG.logUser +
-    "/" +
-    CFG.gistLog +
-    "/raw/" +
-    GIST_LOG_FILE
-  );
-}
-
 function fetchLog() {
-  if (!CFG.gistLog) return Promise.resolve(false);
-  if (canWrite()) {
-    return gistRead(CFG.gistLog)
-      .then(function (g) {
-        var f = g.files && g.files[GIST_LOG_FILE];
-        if (!f) return false;
-        if (g.owner && g.owner.login) CFG.logUser = g.owner.login;
-        if (f.content != null) {
-          S.transactions = parseLog(f.content);
+  if (!canWrite() || !CFG.gistLog) return Promise.resolve(false);
+  return gistRead(CFG.gistLog)
+    .then(function (g) {
+      var f = g.files && g.files[GIST_LOG_FILE];
+      if (!f) return false;
+      if (f.content != null) {
+        S.transactions = parseLog(f.content);
+        saveCfg();
+        return true;
+      }
+      return fetch(f.raw_url, { cache: "no-store" })
+        .then(function (r) {
+          if (!r.ok) throw new Error("log " + r.status);
+          return r.text();
+        })
+        .then(function (txt) {
+          S.transactions = parseLog(txt);
           saveCfg();
           return true;
-        }
-        return fetch(f.raw_url, { cache: "no-store" })
-          .then(function (r) {
-            if (!r.ok) throw new Error("log " + r.status);
-            return r.text();
-          })
-          .then(function (txt) {
-            S.transactions = parseLog(txt);
-            saveCfg();
-            return true;
-          });
-      })
-      .catch(function () {
-        return false;
-      });
-  }
-  var url = logRawUrl();
-  if (!url) return Promise.resolve(false);
-  return fetch(url, { cache: "no-store" })
-    .then(function (r) {
-      if (!r.ok) throw new Error("log " + r.status);
-      return r.text();
-    })
-    .then(function (txt) {
-      S.transactions = parseLog(txt);
-      return true;
+        });
     })
     .catch(function () {
       return false;
@@ -406,13 +370,6 @@ function renderSyncStatus() {
       html +=
         '<br><span style="color:#ff9999;">Bitte vollständige State-Gist-URL eintragen (nicht nur die ID), damit der Lesemodus den State laden kann.</span>';
   }
-  if (CFG.gistLog) {
-    var lur = logRawUrl();
-    html += "<br>Log-URL: " + (lur || "–");
-    if (!lur)
-      html +=
-        '<br><span style="color:#ff9999;">Bitte vollständige Log-Gist-URL eintragen (nicht nur die ID), damit das Log beim Start geladen werden kann.</span>';
-  }
   el.innerHTML = html;
 }
 
@@ -432,7 +389,6 @@ function saveConfig() {
   CFG.token = document.getElementById("cfgToken").value.trim();
   CFG.gistLog = gistId(logInput);
   CFG.gistState = gistId(stateInput);
-  CFG.logUser = gistUser(logInput) || gistUser(stateInput) || CFG.logUser;
   CFG.stateUser = gistUser(stateInput) || gistUser(logInput);
   CFG.stateUrl = buildStateUrl(CFG.gistState, CFG.stateUser) || CFG.stateUrl;
   saveCfg();
