@@ -213,39 +213,88 @@ function buildSnapshot(transactions) {
   };
 }
 
+function stateRawUrl() {
+  var before = CFG.stateUrl;
+  if (CFG.gistState) {
+    if (!CFG.stateUser) CFG.stateUser = gistUser(CFG.stateUrl);
+    if (CFG.stateUser)
+      CFG.stateUrl =
+        buildStateUrl(CFG.gistState, CFG.stateUser) || CFG.stateUrl;
+  } else if (CFG.stateUrl !== DEFAULT_STATE_URL) {
+    CFG.stateUrl = DEFAULT_STATE_URL;
+  }
+  if (CFG.stateUrl !== before) saveCfg();
+  return CFG.stateUrl || "";
+}
+
+function applyStateText(t) {
+  if (!canWrite()) {
+    console.log("Vereinskasse: State im Lesemodus geladen", t);
+  }
+  var d = JSON.parse(t);
+  if (!d || !Array.isArray(d.players)) throw new Error("format");
+  S = Object.assign({}, S, { players: d.players });
+  if (Array.isArray(d.products)) S.products = d.products;
+  if (Array.isArray(d.transactions) && S.transactions.length === 0)
+    S.transactions = d.transactions;
+  applyFinances();
+  save();
+  renderPlayers();
+  renderProdGrid();
+  updateSelBar();
+  updateDebtBox();
+}
+
+function onStateError(e) {
+  console.warn("fetchState fehlgeschlagen:", e);
+  if (!canWrite() && CFG.gistState) {
+    toast(
+      "State konnte nicht geladen werden (" +
+        (e && e.message ? e.message : "Fehler") +
+        ") – URL im Admin prüfen",
+      "err",
+    );
+  }
+}
+
+function fetchStateApi() {
+  gistRead(CFG.gistState)
+    .then(function (g) {
+      var f = g.files && g.files[GIST_STATE_FILE];
+      if (!f) throw new Error("state file fehlt");
+      if (g.owner && g.owner.login) CFG.stateUser = g.owner.login;
+      CFG.stateUrl = f.raw_url || buildStateUrl(CFG.gistState, CFG.stateUser);
+      saveCfg();
+      if (f.content != null) return f.content;
+      return fetch(f.raw_url, { cache: "no-store" }).then(function (r) {
+        if (!r.ok) throw new Error("state " + r.status);
+        return r.text();
+      });
+    })
+    .then(applyStateText)
+    .catch(onStateError);
+}
+
 function fetchState() {
-  if (!CFG.stateUrl) return;
-  fetch(CFG.stateUrl, { cache: "no-store" })
+  if (!CFG.gistState && !CFG.stateUrl) return;
+  var url = stateRawUrl();
+  if (!url) {
+    if (CFG.gistState && canWrite()) fetchStateApi();
+    else onStateError(new Error("state url fehlt"));
+    return;
+  }
+  fetch(url, { cache: "no-store" })
     .then(function (r) {
       if (!r.ok) throw new Error("state " + r.status);
       return r.text();
     })
-    .then(function (t) {
-      if (!canWrite()) {
-        console.log("Vereinskasse: State im Lesemodus geladen", t);
-      }
-      var d = JSON.parse(t);
-      if (!d || !Array.isArray(d.players)) throw new Error("format");
-      S = Object.assign({}, S, { players: d.players });
-      if (Array.isArray(d.products)) S.products = d.products;
-      if (Array.isArray(d.transactions) && S.transactions.length === 0)
-        S.transactions = d.transactions;
-      applyFinances();
-      save();
-      renderPlayers();
-      renderProdGrid();
-      updateSelBar();
-      updateDebtBox();
-    })
+    .then(applyStateText)
     .catch(function (e) {
-      console.warn("fetchState fehlgeschlagen:", e);
-      if (!canWrite() && CFG.gistState) {
-        toast(
-          "State konnte nicht geladen werden (" +
-            (e && e.message ? e.message : "Fehler") +
-            ") – URL im Admin prüfen",
-          "err",
-        );
+      if (CFG.gistState && canWrite()) {
+        console.warn("Raw-State fehlgeschlagen, versuche API:", e);
+        fetchStateApi();
+      } else {
+        onStateError(e);
       }
     });
 }
@@ -1341,8 +1390,7 @@ document.querySelectorAll(".overlay").forEach(function (o) {
 // ── INIT ─────────────────────────────────────────────
 loadCfg();
 load();
-if (CFG.gistState && CFG.stateUser)
-  CFG.stateUrl = buildStateUrl(CFG.gistState, CFG.stateUser);
+stateRawUrl();
 applyFinances();
 fetchState();
 applyReadOnly();
