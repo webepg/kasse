@@ -585,9 +585,9 @@ function renderPlayers() {
       '<div class="pl-row' +
       (selId === p.id ? " active" : "") +
       (od ? " overdue" : "") +
-      '" onclick="selPlayer(' +
+      '" onclick="selPlayer(\'' +
       p.id +
-      ')">';
+      '\')">';
     html += '<div style="flex:1;min-width:0;">';
     html += '<div class="pl-name">' + esc(p.name) + "</div>";
     if (od) html += '<span class="overdue-tag">ÜBERFÄLLIG</span>';
@@ -772,9 +772,9 @@ function renderProdGrid() {
   for (var i = 0; i < S.products.length; i++) {
     var p = S.products[i];
     html +=
-      '<div class="prod-btn" onclick="addToCart(' +
+      '<div class="prod-btn" onclick="addToCart(\'' +
       p.id +
-      ')">' +
+      '\')">' +
       '<span class="prod-nm">' +
       esc(p.name) +
       "</span>" +
@@ -884,9 +884,9 @@ function renderCart() {
         ';">' +
         fmt(c.price * c.qty) +
         "</span>" +
-        '<button class="cart-del" onclick="removeFromCart(' +
+        '<button class="cart-del" onclick="removeFromCart(\'' +
         c.id +
-        "," +
+        '\',' +
         c.custom +
         ')">✕</button>' +
         "</div>";
@@ -1110,9 +1110,9 @@ function renderAdminContent() {
       "</span>" +
       '<span style="display:flex;align-items:center;gap:6px;">' +
       debtStr +
-      '<button class="btn btn-ghost btn-sm" onclick="confirmAustreten(' +
+      '<button class="btn btn-ghost btn-sm" onclick="confirmAustreten(\'' +
       p.id +
-      ')">Austreten</button>' +
+      '\')">Austreten</button>' +
       "</span></div>" +
       '<div id="confirm-' +
       p.id +
@@ -1121,12 +1121,12 @@ function renderAdminContent() {
       esc(p.name) +
       " wirklich deaktivieren?</span>" +
       '<span style="display:flex;gap:6px;margin-top:6px;">' +
-      '<button class="btn btn-red btn-sm" onclick="removePlayer(' +
+      '<button class="btn btn-red btn-sm" onclick="removePlayer(\'' +
       p.id +
-      ')">✓ Ja, austreten</button>' +
-      '<button class="btn btn-ghost btn-sm" onclick="cancelAustreten(' +
+      '\')">✓ Ja, austreten</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="cancelAustreten(\'' +
       p.id +
-      ')">Abbrechen</button>' +
+      '\')">Abbrechen</button>' +
       "</span></div>";
   }
   if (hasInactive) {
@@ -1140,9 +1140,9 @@ function renderAdminContent() {
         "<span>" +
         esc(p.name) +
         ' <span style="font-size:11px;color:var(--gray);">(inaktiv)</span></span>' +
-        '<button class="btn btn-ghost btn-sm" onclick="reactivatePlayer(' +
+        '<button class="btn btn-ghost btn-sm" onclick="reactivatePlayer(\'' +
         p.id +
-        ')" style="font-size:11px;">Reaktivieren</button>' +
+        '\')">Reaktivieren</button>' +
         "</div>";
     }
   }
@@ -1161,9 +1161,9 @@ function renderAdminContent() {
       '<span style="font-family:Oswald,sans-serif;color:var(--red-light);">' +
       fmt(p.price) +
       "</span>" +
-      '<button class="btn btn-ghost btn-sm" onclick="removeProduct(' +
+      '<button class="btn btn-ghost btn-sm" onclick="removeProduct(\'' +
       p.id +
-      ')">✕</button>' +
+      '\')">✕</button>' +
       "</span></div>";
   }
   document.getElementById("adminPrList").innerHTML = prh;
