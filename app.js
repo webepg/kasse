@@ -481,6 +481,25 @@ function syncNow(silent) {
   }
   var pending = loadPending();
   if (!pending.length) {
+    if (canWrite()) {
+      syncBusy = true;
+      gistWrite(
+        CFG.gistState,
+        GIST_STATE_FILE,
+        JSON.stringify(buildSnapshot(S.transactions))
+      )
+        .then(function () {
+          syncBusy = false;
+          renderSyncStatus();
+          if (!silent) toast("Alles synchron ✓", "ok");
+        })
+        .catch(function () {
+          syncBusy = false;
+          renderSyncStatus();
+          if (!silent) toast("Sync fehlgeschlagen", "err");
+        });
+      return;
+    }
     if (!silent) toast("Alles synchron ✓", "ok");
     renderSyncStatus();
     return;
@@ -1224,6 +1243,7 @@ function addPlayer() {
   renderAdminContent();
   renderPlayers();
   save();
+  syncNow(true);
   toast(nm + " hinzugefügt", "ok");
 }
 
@@ -1250,6 +1270,7 @@ function removePlayer(id) {
   renderAdminContent();
   renderPlayers();
   save();
+  syncNow(true);
   toast(p.name + " deaktiviert", "ok");
 }
 
@@ -1277,6 +1298,7 @@ function reactivatePlayer(id) {
   renderAdminContent();
   renderPlayers();
   save();
+  syncNow(true);
   toast(p.name + " reaktiviert", "ok");
 }
 
@@ -1294,6 +1316,7 @@ function addProduct() {
   renderAdminContent();
   renderProdGrid();
   save();
+  syncNow(true);
 }
 
 function removeProduct(id) {
@@ -1307,6 +1330,7 @@ function removeProduct(id) {
   renderAdminContent();
   renderProdGrid();
   save();
+  syncNow(true);
 }
 
 // ── ZAHLUNGEN ────────────────────────────────────────
