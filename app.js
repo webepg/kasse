@@ -1,6 +1,6 @@
 // ── STATE ───────────────────────────────────────────
 var S = {
-  adminPin: "1234",
+  adminPin: "1888",
   players: [],
   products: [],
   transactions: [],
@@ -71,7 +71,9 @@ function gistId(v) {
 function gistUser(v) {
   v = (v || "").trim();
   if (!v) return "";
-  var m = v.match(/gist\.github(?:usercontent)?\.com\/([^/]+)\/([0-9a-f]{20,})/i);
+  var m = v.match(
+    /gist\.github(?:usercontent)?\.com\/([^/]+)\/([0-9a-f]{20,})/i,
+  );
   return m ? m[1] : "";
 }
 function buildStateUrl(id, user) {
@@ -263,12 +265,16 @@ function parseLog(t) {
 function logRawUrl() {
   var before = CFG.logUrl;
   if (CFG.gistLog) {
-    if (!CFG.stateUser) CFG.stateUser = gistUser(CFG.logUrl) || gistUser(CFG.stateUrl);
+    if (!CFG.stateUser)
+      CFG.stateUser = gistUser(CFG.logUrl) || gistUser(CFG.stateUrl);
     if (CFG.stateUser)
       CFG.logUrl = buildLogUrl(CFG.gistLog, CFG.stateUser) || CFG.logUrl;
   }
   if (!CFG.stateUser)
-    CFG.stateUser = gistUser(CFG.logUrl) || gistUser(CFG.stateUrl) || gistUser(DEFAULT_STATE_URL);
+    CFG.stateUser =
+      gistUser(CFG.logUrl) ||
+      gistUser(CFG.stateUrl) ||
+      gistUser(DEFAULT_STATE_URL);
   if (CFG.logUrl !== before) saveCfg();
   return CFG.logUrl || "";
 }
@@ -450,14 +456,19 @@ function saveConfig() {
   CFG.token = document.getElementById("cfgToken").value.trim();
   CFG.gistLog = gistId(logInput);
   CFG.gistState = gistId(stateInput);
-  CFG.stateUser = gistUser(stateInput) || gistUser(logInput) || gistUser(CFG.stateUrl);
+  CFG.stateUser =
+    gistUser(stateInput) || gistUser(logInput) || gistUser(CFG.stateUrl);
   CFG.stateUrl = buildStateUrl(CFG.gistState, CFG.stateUser) || CFG.stateUrl;
   CFG.logUrl = buildLogUrl(CFG.gistLog, CFG.stateUser) || CFG.logUrl;
   saveCfg();
   applyReadOnly();
   renderSyncStatus();
-  if (!loadPending().length) { fetchState(); }
-  else { fetchLog(); finishLoad(true); }
+  if (!loadPending().length) {
+    fetchState();
+  } else {
+    fetchLog();
+    finishLoad(true);
+  }
   toast("Einstellungen gespeichert ✓", "ok");
 }
 
@@ -1408,16 +1419,9 @@ function uid() {
   if (window.crypto && window.crypto.getRandomValues) {
     var a = new Uint32Array(2);
     window.crypto.getRandomValues(a);
-    return (
-      a[0].toString(36) +
-      a[1].toString(36) +
-      Date.now().toString(36)
-    );
+    return a[0].toString(36) + a[1].toString(36) + Date.now().toString(36);
   }
-  return (
-    Date.now().toString(36) +
-    Math.random().toString(36).slice(2, 10)
-  );
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 function getPlayer(id) {
   for (var i = 0; i < S.players.length; i++) {
