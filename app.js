@@ -39,6 +39,7 @@ var CFG = {
   gistLog: "",
   gistState: "",
   stateUrl: DEFAULT_STATE_URL,
+  logUrl: "",
   stateUser: "",
 };
 var syncBusy = false;
@@ -83,6 +84,18 @@ function buildStateUrl(id, user) {
     id +
     "/raw/" +
     GIST_STATE_FILE
+  );
+}
+function buildLogUrl(id, user) {
+  id = gistId(id);
+  if (!id || !user) return "";
+  return (
+    "https://gist.githubusercontent.com/" +
+    user +
+    "/" +
+    id +
+    "/raw/" +
+    GIST_LOG_FILE
   );
 }
 function loadPending() {
@@ -247,31 +260,79 @@ function parseLog(t) {
   }
 }
 
+function logRawUrl() {
+  var before = CFG.logUrl;
+  if (CFG.gistLog) {
+    if (!CFG.stateUser) CFG.stateUser = gistUser(CFG.logUrl) || gistUser(CFG.stateUrl);
+    if (CFG.stateUser)
+      CFG.logUrl = buildLogUrl(CFG.gistLog, CFG.stateUser) || CFG.logUrl;
+  }
+  if (!CFG.stateUser)
+    CFG.stateUser = gistUser(CFG.logUrl) || gistUser(CFG.stateUrl) || gistUser(DEFAULT_STATE_URL);
+  if (CFG.logUrl !== before) saveCfg();
+  return CFG.logUrl || "";
+}
+
 function fetchLog() {
-  if (!canWrite() || !CFG.gistLog) return Promise.resolve(false);
-  return gistRead(CFG.gistLog)
-    .then(function (g) {
-      var f = g.files && g.files[GIST_LOG_FILE];
-      if (!f) return false;
-      if (f.content != null) {
-        S.transactions = parseLog(f.content);
+  if (!CFG.gistLog && !CFG.logUrl) return Promise.resolve(false);
+  if (canWrite()) {
+    return gistRead(CFG.gistLog)
+      .then(function (g) {
+        var f = g.files && g.files[GIST_LOG_FILE];
+        if (!f) return false;
+        if (g.owner && g.owner.login) CFG.stateUser = g.owner.login;
+        CFG.logUrl = f.raw_url || buildLogUrl(CFG.gistLog, CFG.stateUser);
         saveCfg();
-        return true;
-      }
-      return fetch(f.raw_url, { cache: "no-store" })
-        .then(function (r) {
-          if (!r.ok) throw new Error("log " + r.status);
-          return r.text();
-        })
-        .then(function (txt) {
-          S.transactions = parseLog(txt);
+        if (f.content != null) {
+          S.transactions = parseLog(f.content);
           saveCfg();
           return true;
-        });
-    })
-    .catch(function () {
-      return false;
-    });
+        }
+        return fetch(f.raw_url, { cache: "no-store" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("log " + r.status);
+            return r.text();
+          })
+          .then(function (txt) {
+            S.transactions = parseLog(txt);
+            saveCfg();
+            return true;
+          });
+      })
+      .catch(function () {
+        var url = logRawUrl();
+        if (!url) return false;
+        return fetch(url, { cache: "no-store" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("log " + r.status);
+            return r.text();
+          })
+          .then(function (txt) {
+            S.transactions = parseLog(txt);
+            return true;
+          })
+          .catch(function () {
+            return false;
+          });
+      });
+  } else {
+    var url2 = logRawUrl();
+    if (!url2 && CFG.gistLog && CFG.stateUser)
+      url2 = buildLogUrl(CFG.gistLog, CFG.stateUser);
+    if (!url2) return Promise.resolve(false);
+    return fetch(url2, { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("log " + r.status);
+        return r.text();
+      })
+      .then(function (txt) {
+        S.transactions = parseLog(txt);
+        return true;
+      })
+      .catch(function () {
+        return false;
+      });
+  }
 }
 
 function finishLoad(logLoaded) {
@@ -389,12 +450,14 @@ function saveConfig() {
   CFG.token = document.getElementById("cfgToken").value.trim();
   CFG.gistLog = gistId(logInput);
   CFG.gistState = gistId(stateInput);
-  CFG.stateUser = gistUser(stateInput) || gistUser(logInput);
+  CFG.stateUser = gistUser(stateInput) || gistUser(logInput) || gistUser(CFG.stateUrl);
   CFG.stateUrl = buildStateUrl(CFG.gistState, CFG.stateUser) || CFG.stateUrl;
+  CFG.logUrl = buildLogUrl(CFG.gistLog, CFG.stateUser) || CFG.logUrl;
   saveCfg();
   applyReadOnly();
   renderSyncStatus();
-  if (!loadPending().length) fetchState();
+  if (!loadPending().length) { fetchState(); }
+  else { fetchLog(); finishLoad(true); }
   toast("Einstellungen gespeichert ✓", "ok");
 }
 
@@ -532,7 +595,6 @@ function renderPlayers() {
 }
 
 function selPlayer(id) {
-  if (!canWrite()) return;
   selId = id;
   renderPlayers();
   updateSelBar();
