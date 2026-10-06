@@ -6,6 +6,13 @@ var S = {
   transactions: [],
 };
 var cart = [];
+try {
+  var _c = localStorage.getItem("vk5_cart");
+  if (_c) {
+    cart = JSON.parse(_c);
+    if (!Array.isArray(cart)) cart = [];
+  }
+} catch (e) { cart = []; }
 var selId = null;
 var isAdmin = false;
 var pendingAction = null;
@@ -17,12 +24,12 @@ function save() {
   } catch (e) {}
 }
 function load() {
-  if (!canWrite()) return;
   try {
     var d = localStorage.getItem("vk5");
     if (d) {
       var p = JSON.parse(d);
       S = Object.assign({}, S, p);
+      dedupeState();
     }
   } catch (e) {}
 }
@@ -251,12 +258,14 @@ function applyStateText(t) {
   if (!d || !Array.isArray(d.players)) throw new Error("format");
   S = Object.assign({}, S, { players: d.players });
   if (Array.isArray(d.products)) S.products = d.products;
+  if (d.adminPin) S.adminPin = d.adminPin;
+  dedupeState();
 }
 
 function parseLog(t) {
   try {
     var a = JSON.parse(t);
-    return Array.isArray(a) ? a : [];
+    return uniqueById(Array.isArray(a) ? a : []);
   } catch (e) {
     return [];
   }
@@ -873,6 +882,7 @@ function removeFromCart(id, custom) {
 
 function clearCart() {
   cart = [];
+  try { localStorage.removeItem("vk5_cart"); } catch (e) {}
   renderCart();
 }
 
@@ -920,6 +930,7 @@ function renderCart() {
     badge.style.display = n ? "inline-block" : "none";
     badge.textContent = n;
   }
+  try { localStorage.setItem("vk5_cart", JSON.stringify(cart)); } catch (e) {}
 }
 
 function doPay() {
@@ -1447,9 +1458,29 @@ function uid() {
   }
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
+function uniqueById(arr) {
+  if (!Array.isArray(arr)) return [];
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    var it = arr[i];
+    if (it && it.id != null && !(it.id in seen)) {
+      seen[it.id] = true;
+      out.push(it);
+    }
+  }
+  return out;
+}
+
+function dedupeState() {
+  S.players = uniqueById(S.players);
+  S.products = uniqueById(S.products);
+  S.transactions = uniqueById(S.transactions);
+}
+
 function getPlayer(id) {
   for (var i = 0; i < S.players.length; i++) {
-    if (S.players[i].id === id) return S.players[i];
+    if (String(S.players[i].id) === String(id)) return S.players[i];
   }
   return null;
 }
