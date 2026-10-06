@@ -764,7 +764,9 @@ function settlePlayer() {
     return;
   }
   if (!selId) return;
+  fetchState();
   var p = getPlayer(selId);
+  if (!p) return;
   var t = {
     id: uid(),
     type: "getraenke",
@@ -946,7 +948,13 @@ function doPay() {
     toast("Warenkorb ist leer", "err");
     return;
   }
+  // Force refresh before write
+  fetchState();
   var p = getPlayer(selId);
+  if (!p) {
+    toast("Spieler nicht gefunden", "err");
+    return;
+  }
   var total = cartTotal();
   var items = cart
     .map(function (c) {
@@ -975,6 +983,7 @@ function doPay() {
     );
   else toast(fmt(total) + " aufgeschrieben für " + p.name, "ok");
   cart = [];
+  try { localStorage.removeItem("vk5_cart"); } catch (e) {}
   renderCart();
   updateSelBar();
   updateDebtBox();
@@ -1243,6 +1252,7 @@ function addPlayer() {
       return;
     }
   }
+  fetchState();
   S.players.push({
     id: uid(),
     name: nm,
@@ -1272,6 +1282,7 @@ function removePlayer(id) {
     toast("Spieler hat offene Schulden", "err");
     return;
   }
+  fetchState();
   p.active = false;
   if (selId === id) {
     selId = null;
@@ -1305,6 +1316,7 @@ function reactivatePlayer(id) {
     return;
   }
   var p = getPlayer(id);
+  fetchState();
   p.active = true;
   renderAdminContent();
   renderPlayers();
@@ -1321,6 +1333,7 @@ function addProduct() {
   var nm = document.getElementById("newPrNm").value.trim();
   var pr = parseFloat(document.getElementById("newPrPr").value);
   if (!nm || isNaN(pr) || pr <= 0) return;
+  fetchState();
   S.products.push({ id: uid(), name: nm, price: pr });
   document.getElementById("newPrNm").value = "";
   document.getElementById("newPrPr").value = "";
@@ -1335,6 +1348,7 @@ function removeProduct(id) {
     toast("Keine Schreibrechte – Sync im Admin einrichten", "err");
     return;
   }
+  fetchState();
   S.products = S.products.filter(function (x) {
     return x.id !== id;
   });
