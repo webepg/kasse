@@ -373,8 +373,20 @@ function onStateError(e) {
   }
 }
 
+// Schutz gegen Race Conditions: Ein Fetch, der gestartet wurde, bevor lokal
+// etwas geändert wurde, darf die Antwort nicht mehr anwenden (sonst wird die
+// Änderung zurückgespielt).
+var mutSeq = 0;
+function touchMutation() {
+  mutSeq++;
+}
+function isStale(seqAtStart) {
+  return seqAtStart !== mutSeq;
+}
+
 function fetchStateApi() {
-  gistRead(CFG.gistState)
+  var seqAtStart = mutSeq;
+  return gistRead(CFG.gistState)
     .then(function (g) {
       var f = g.files && g.files[GIST_STATE_FILE];
       if (!f) throw new Error("state file fehlt");
@@ -388,39 +400,74 @@ function fetchStateApi() {
       });
     })
     .then(function (t) {
+      if (isStale(seqAtStart)) return "stale";
       applyStateText(t);
       return fetchLog();
     })
-    .then(finishLoad)
-    .catch(onStateError);
+    .then(function (res) {
+      if (res === "stale") return false;
+      finishLoad(res === true);
+      return true;
+    })
+    .catch(function (e) {
+      onStateError(e);
+      return false;
+    });
 }
 
 function fetchState() {
-  if (!CFG.gistState && !CFG.stateUrl) return;
+  if (!CFG.gistState && !CFG.stateUrl) return Promise.resolve(false);
   var url = stateRawUrl();
   if (!url) {
-    if (CFG.gistState && canWrite()) fetchStateApi();
-    else onStateError(new Error("state url fehlt"));
-    return;
+    if (CFG.gistState && canWrite()) return fetchStateApi();
+    onStateError(new Error("state url fehlt"));
+    return Promise.resolve(false);
   }
-  fetch(url, { cache: "no-store" })
+  var seqAtStart = mutSeq;
+  return fetch(url, { cache: "no-store" })
     .then(function (r) {
       if (!r.ok) throw new Error("state " + r.status);
       return r.text();
     })
     .then(function (t) {
+      if (isStale(seqAtStart)) return "stale";
       applyStateText(t);
       return fetchLog();
     })
-    .then(finishLoad)
+    .then(function (res) {
+      if (res === "stale") return false;
+      finishLoad(res === true);
+      return true;
+    })
     .catch(function (e) {
       if (CFG.gistState && canWrite()) {
         console.warn("Raw-State fehlgeschlagen, versuche API:", e);
-        fetchStateApi();
-      } else {
-        onStateError(e);
+        return fetchStateApi();
       }
+      onStateError(e);
+      return false;
     });
+}
+
+// Führt eine Änderung erst aus, nachdem der State neu geladen wurde.
+// Schlägt der Refresh fehl oder dauert er zu lange, wird lokal weitergemacht.
+function withFreshState(fn) {
+  var run = fetchState().then(
+    function () {
+      return true;
+    },
+    function () {
+      return false;
+    },
+  );
+  var timeout = new Promise(function (res) {
+    setTimeout(function () {
+      res(false);
+    }, 5000);
+  });
+  Promise.race([run, timeout]).then(function () {
+    fn();
+  });
 }
 
 function applyReadOnly() {
@@ -549,6 +596,7 @@ function syncNow(silent) {
     })
     .then(function () {
       syncBusy = false;
+      touchMutation();
       savePending([]);
       S.transactions = merged;
       applyFinances();
@@ -668,6 +716,11 @@ function updateSelBar() {
     return;
   }
   var p = getPlayer(selId);
+  if (!p) {
+    selId = null;
+    bar.innerHTML = '<span class="sel-bar-empty">← Spieler wählen</span>';
+    return;
+  }
   bar.innerHTML =
     '<span class="sel-bar-name">' +
     esc(p.name) +
@@ -686,6 +739,11 @@ function updateDebtBox() {
   }
   box.style.display = "block";
   var p = getPlayer(selId);
+  if (!p) {
+    selId = null;
+    box.style.display = "none";
+    return;
+  }
   var dv = document.getElementById("debtVal");
   if (p.debt > 0) {
     dv.textContent = fmt(p.debt) + " Schulden";
@@ -766,36 +824,46 @@ function settlePlayer() {
     return;
   }
   if (!selId) return;
-  fetchState();
-  var p = getPlayer(selId);
-  if (!p) return;
-  var t = {
-    id: uid(),
-    type: "getraenke",
-    playerId: p.id,
-    playerName: p.name,
-    items: "Barzahlung",
-    amount: p.debt,
-    method: "bar",
-    paid: true,
-    settled: true,
-    date: new Date().toISOString(),
-  };
-  S.transactions.push(t);
-  queueTransaction(t);
-  for (var i = 0; i < S.transactions.length; i++) {
-    var t2 = S.transactions[i];
-    if (t2.playerId === p.id && t2.type === "getraenke" && !t2.paid)
-      t2.paid = true;
-  }
-  p.lastPaid = new Date().toISOString();
-  toast("" + fmt(p.debt) + " von " + p.name + " erhalten ✓", "ok");
-  p.debt = 0;
-  renderPlayers();
-  updateSelBar();
-  updateDebtBox();
-  save();
-  syncNow(true);
+  var pid = selId;
+  withFreshState(function () {
+    var p = getPlayer(pid);
+    if (!p) {
+      toast("Spieler nicht gefunden", "err");
+      return;
+    }
+    if (!(p.debt > 0)) {
+      toast("Keine offenen Schulden", "err");
+      return;
+    }
+    touchMutation();
+    var t = {
+      id: uid(),
+      type: "getraenke",
+      playerId: p.id,
+      playerName: p.name,
+      items: "Barzahlung",
+      amount: p.debt,
+      method: "bar",
+      paid: true,
+      settled: true,
+      date: new Date().toISOString(),
+    };
+    S.transactions.push(t);
+    queueTransaction(t);
+    for (var i = 0; i < S.transactions.length; i++) {
+      var t2 = S.transactions[i];
+      if (t2.playerId === p.id && t2.type === "getraenke" && !t2.paid)
+        t2.paid = true;
+    }
+    p.lastPaid = new Date().toISOString();
+    toast("" + fmt(p.debt) + " von " + p.name + " erhalten ✓", "ok");
+    p.debt = 0;
+    renderPlayers();
+    updateSelBar();
+    updateDebtBox();
+    save();
+    syncNow(true);
+  });
 }
 
 // ── PRODUCTS ────────────────────────────────────────
@@ -954,13 +1022,7 @@ function doPay() {
     toast("Warenkorb ist leer", "err");
     return;
   }
-  // Force refresh before write
-  fetchState();
-  var p = getPlayer(selId);
-  if (!p) {
-    toast("Spieler nicht gefunden", "err");
-    return;
-  }
+  var pid = selId;
   var total = cartTotal();
   var items = cart
     .map(function (c) {
@@ -968,36 +1030,48 @@ function doPay() {
     })
     .join(", ");
   var isGuthaben = total < 0;
-  var t = {
-    id: uid(),
-    type: "getraenke",
-    playerId: p.id,
-    playerName: p.name,
-    items: items,
-    amount: total,
-    method: "aufschreiben",
-    paid: isGuthaben,
-    date: new Date().toISOString(),
-  };
-  S.transactions.push(t);
-  queueTransaction(t);
-  p.debt = Math.round((p.debt + total) * 100) / 100;
-  if (isGuthaben)
-    toast(
-      "Guthaben " + fmt(Math.abs(total)) + " für " + p.name + " gutgeschrieben",
-      "ok",
-    );
-  else toast(fmt(total) + " aufgeschrieben für " + p.name, "ok");
-  cart = [];
-  try {
-    localStorage.removeItem("vk5_cart");
-  } catch (e) {}
-  renderCart();
-  updateSelBar();
-  updateDebtBox();
-  renderPlayers();
-  save();
-  syncNow(true);
+  withFreshState(function () {
+    var p = getPlayer(pid);
+    if (!p) {
+      toast("Spieler nicht gefunden", "err");
+      return;
+    }
+    touchMutation();
+    var t = {
+      id: uid(),
+      type: "getraenke",
+      playerId: p.id,
+      playerName: p.name,
+      items: items,
+      amount: total,
+      method: "aufschreiben",
+      paid: isGuthaben,
+      date: new Date().toISOString(),
+    };
+    S.transactions.push(t);
+    queueTransaction(t);
+    p.debt = Math.round((p.debt + total) * 100) / 100;
+    if (isGuthaben)
+      toast(
+        "Guthaben " +
+          fmt(Math.abs(total)) +
+          " für " +
+          p.name +
+          " gutgeschrieben",
+        "ok",
+      );
+    else toast(fmt(total) + " aufgeschrieben für " + p.name, "ok");
+    cart = [];
+    try {
+      localStorage.removeItem("vk5_cart");
+    } catch (e) {}
+    renderCart();
+    updateSelBar();
+    updateDebtBox();
+    renderPlayers();
+    save();
+    syncNow(true);
+  });
 }
 
 // ── ADMIN ────────────────────────────────────────────
@@ -1113,6 +1187,7 @@ function runAbrechnung() {
     })
     .then(function () {
       abrBusy = false;
+      touchMutation();
       savePending([]);
       S.transactions = consolidated;
       applyFinances();
@@ -1163,7 +1238,7 @@ function renderAdminContent() {
       "</span></div>" +
       '<div id="confirm-' +
       p.id +
-      '" style="display:none;background:#2a0505;border:1px solid var(--red);border-radius:7px;padding:8px 12px;margin-bottom:6px;display:none;font-size:13px;">' +
+      '" style="display:none;background:#2a0505;border:1px solid var(--red);border-radius:7px;padding:8px 12px;margin-bottom:6px;font-size:13px;">' +
       '<span style="color:#ff9999;">' +
       esc(p.name) +
       " wirklich deaktivieren?</span>" +
@@ -1254,26 +1329,28 @@ function addPlayer() {
   }
   var nm = document.getElementById("newPlName").value.trim();
   if (!nm) return;
-  for (var i = 0; i < S.players.length; i++) {
-    if (S.players[i].name.toLowerCase() === nm.toLowerCase()) {
-      toast("Spieler existiert bereits", "err");
-      return;
+  withFreshState(function () {
+    for (var i = 0; i < S.players.length; i++) {
+      if (S.players[i].name.toLowerCase() === nm.toLowerCase()) {
+        toast("Spieler existiert bereits", "err");
+        return;
+      }
     }
-  }
-  fetchState();
-  S.players.push({
-    id: uid(),
-    name: nm,
-    debt: 0,
-    lastPaid: null,
-    active: true,
+    touchMutation();
+    S.players.push({
+      id: uid(),
+      name: nm,
+      debt: 0,
+      lastPaid: null,
+      active: true,
+    });
+    document.getElementById("newPlName").value = "";
+    renderAdminContent();
+    renderPlayers();
+    save();
+    syncNow(true);
+    toast(nm + " hinzugefügt", "ok");
   });
-  document.getElementById("newPlName").value = "";
-  renderAdminContent();
-  renderPlayers();
-  save();
-  syncNow(true);
-  toast(nm + " hinzugefügt", "ok");
 }
 
 function removePlayer(id) {
@@ -1281,27 +1358,33 @@ function removePlayer(id) {
     toast("Keine Schreibrechte – Sync im Admin einrichten", "err");
     return;
   }
-  var p = getPlayer(id);
-  if (!p) {
-    toast("Spieler nicht gefunden", "err");
-    return;
-  }
-  if (p.debt !== 0) {
-    toast("Spieler hat offene Schulden", "err");
-    return;
-  }
-  fetchState();
-  p.active = false;
-  if (selId === id) {
-    selId = null;
-    updateSelBar();
-    updateDebtBox();
-  }
-  renderAdminContent();
-  renderPlayers();
-  save();
-  syncNow(true);
-  toast(p.name + " deaktiviert", "ok");
+  withFreshState(function () {
+    var p = getPlayer(id);
+    if (!p) {
+      toast("Spieler nicht gefunden", "err");
+      return;
+    }
+    var debt = Math.round((p.debt || 0) * 100) / 100;
+    if (debt !== 0) {
+      toast(
+        p.name + " hat noch offene Schulden (" + fmt(debt) + ")",
+        "err",
+      );
+      return;
+    }
+    touchMutation();
+    p.active = false;
+    if (selId === id) {
+      selId = null;
+      updateSelBar();
+      updateDebtBox();
+    }
+    renderAdminContent();
+    renderPlayers();
+    save();
+    syncNow(true);
+    toast(p.name + " ausgetreten ✓", "ok");
+  });
 }
 
 function confirmAustreten(id) {
@@ -1323,14 +1406,20 @@ function reactivatePlayer(id) {
     toast("Keine Schreibrechte – Sync im Admin einrichten", "err");
     return;
   }
-  var p = getPlayer(id);
-  fetchState();
-  p.active = true;
-  renderAdminContent();
-  renderPlayers();
-  save();
-  syncNow(true);
-  toast(p.name + " reaktiviert", "ok");
+  withFreshState(function () {
+    var p = getPlayer(id);
+    if (!p) {
+      toast("Spieler nicht gefunden", "err");
+      return;
+    }
+    touchMutation();
+    p.active = true;
+    renderAdminContent();
+    renderPlayers();
+    save();
+    syncNow(true);
+    toast(p.name + " reaktiviert", "ok");
+  });
 }
 
 function addProduct() {
@@ -1341,14 +1430,16 @@ function addProduct() {
   var nm = document.getElementById("newPrNm").value.trim();
   var pr = parseFloat(document.getElementById("newPrPr").value);
   if (!nm || isNaN(pr) || pr <= 0) return;
-  fetchState();
-  S.products.push({ id: uid(), name: nm, price: pr });
-  document.getElementById("newPrNm").value = "";
-  document.getElementById("newPrPr").value = "";
-  renderAdminContent();
-  renderProdGrid();
-  save();
-  syncNow(true);
+  withFreshState(function () {
+    touchMutation();
+    S.products.push({ id: uid(), name: nm, price: pr });
+    document.getElementById("newPrNm").value = "";
+    document.getElementById("newPrPr").value = "";
+    renderAdminContent();
+    renderProdGrid();
+    save();
+    syncNow(true);
+  });
 }
 
 function removeProduct(id) {
@@ -1356,14 +1447,16 @@ function removeProduct(id) {
     toast("Keine Schreibrechte – Sync im Admin einrichten", "err");
     return;
   }
-  fetchState();
-  S.products = S.products.filter(function (x) {
-    return x.id !== id;
+  withFreshState(function () {
+    touchMutation();
+    S.products = S.products.filter(function (x) {
+      return x.id !== id;
+    });
+    renderAdminContent();
+    renderProdGrid();
+    save();
+    syncNow(true);
   });
-  renderAdminContent();
-  renderProdGrid();
-  save();
-  syncNow(true);
 }
 
 // ── ZAHLUNGEN ────────────────────────────────────────
