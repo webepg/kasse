@@ -252,15 +252,40 @@ function stateRawUrl() {
   return CFG.stateUrl || "";
 }
 
+function mergeById(local, seed) {
+  var out = local.slice();
+  var seen = {};
+  for (var i = 0; i < local.length; i++) {
+    if (local[i] && local[i].id != null) seen[local[i].id] = true;
+  }
+  for (var j = 0; j < seed.length; j++) {
+    var s = seed[j];
+    if (s && s.id != null && !seen[s.id]) {
+      seen[s.id] = true;
+      out.push(s);
+    }
+  }
+  return out;
+}
+
 function applyStateText(t) {
   if (!canWrite()) {
     console.log("Vereinskasse: State im Lesemodus geladen", t);
   }
   var d = JSON.parse(t);
   if (!d || !Array.isArray(d.players)) throw new Error("format");
-  S = Object.assign({}, S, { players: d.players });
-  if (Array.isArray(d.products)) S.products = d.products;
-  if (d.adminPin) S.adminPin = d.adminPin;
+  // Die mitgelieferte Beispiel-State-URL ist Fremddaten (Demo). Sie darf
+  // lokale Änderungen nicht überschreiben, sondern nur neue Einträge ergänzen.
+  var isTemplate = !CFG.gistState || CFG.stateUrl === DEFAULT_STATE_URL;
+  if (isTemplate && (S.players.length || S.products.length)) {
+    S.players = mergeById(S.players, d.players);
+    if (Array.isArray(d.products))
+      S.products = mergeById(S.products, d.products);
+  } else {
+    S.players = d.players;
+    if (Array.isArray(d.products)) S.products = d.products;
+    if (d.adminPin) S.adminPin = d.adminPin;
+  }
   dedupeState();
 }
 
@@ -384,6 +409,9 @@ function isStale(seqAtStart) {
   return seqAtStart !== mutSeq;
 }
 
+// State zuerst über die API lesen (frischer Inhalt), erst als Fallback die
+// Raw-URL – die wird von GitHubs CDN nach einem PATCH noch Minuten lang mit
+// dem alten Inhalt ausgeliefert.
 function fetchStateApi() {
   var seqAtStart = mutSeq;
   return gistRead(CFG.gistState)
@@ -410,20 +438,17 @@ function fetchStateApi() {
       return true;
     })
     .catch(function (e) {
-      onStateError(e);
-      return false;
+      console.warn("Vereinskasse: State-API fehlgeschlagen, versuche Raw-URL:", e);
+      return fetchStateRaw(seqAtStart);
     });
 }
 
-function fetchState() {
-  if (!CFG.gistState && !CFG.stateUrl) return Promise.resolve(false);
+function fetchStateRaw(seqAtStart) {
   var url = stateRawUrl();
   if (!url) {
-    if (CFG.gistState && canWrite()) return fetchStateApi();
     onStateError(new Error("state url fehlt"));
     return Promise.resolve(false);
   }
-  var seqAtStart = mutSeq;
   return fetch(url, { cache: "no-store" })
     .then(function (r) {
       if (!r.ok) throw new Error("state " + r.status);
@@ -440,13 +465,15 @@ function fetchState() {
       return true;
     })
     .catch(function (e) {
-      if (CFG.gistState && canWrite()) {
-        console.warn("Raw-State fehlgeschlagen, versuche API:", e);
-        return fetchStateApi();
-      }
       onStateError(e);
       return false;
     });
+}
+
+function fetchState() {
+  if (!CFG.gistState && !CFG.stateUrl) return Promise.resolve(false);
+  if (CFG.gistState && canWrite()) return fetchStateApi();
+  return fetchStateRaw(mutSeq);
 }
 
 // Führt eine Änderung erst aus, nachdem der State neu geladen wurde.
@@ -494,7 +521,15 @@ function renderSyncStatus() {
     if (!CFG.stateUrl)
       html +=
         '<br><span style="color:#ff9999;">Bitte vollständige State-Gist-URL eintragen (nicht nur die ID), damit der Lesemodus den State laden kann.</span>';
+    if (CFG.stateUrl === DEFAULT_STATE_URL)
+      html +=
+        '<br><span style="color:#ff9999;">Achtung: Es wird noch die mitgelieferte Beispiel-State-URL geladen. "Sync jetzt" übernimmt die korrekte URL automatisch.</span>';
   }
+  if (syncLastError)
+    html +=
+      '<br><span style="color:#ff6b6b;">Letzter Sync-Fehler: ' +
+      esc(syncLastError) +
+      "</span>";
   el.innerHTML = html;
 }
 
@@ -530,6 +565,29 @@ function saveConfig() {
   toast("Einstellungen gespeichert ✓", "ok");
 }
 
+var syncLastError = "";
+// Sync-Fehler werden immer angezeigt – auch bei "silent"-Aufrufen aus
+// Verwaltungsaktionen, sonst fällt eine fehlgeschlagene Übernahme still auf.
+function syncFail(e) {
+  syncLastError = e && e.message ? e.message : String(e || "unbekannt");
+  console.warn("Vereinskasse: Sync fehlgeschlagen:", e);
+  renderSyncStatus();
+  toast("Sync fehlgeschlagen (" + syncLastError + ")", "err");
+}
+// Die Raw-URLs frisch aus der GitHub-Antwort übernehmen – garantiert, dass
+// danach genau die Gist gelesen wird, die gerade geschrieben wurde.
+function adoptUrls(g) {
+  try {
+    if (!g) return;
+    if (g.owner && g.owner.login) CFG.stateUser = g.owner.login;
+    var sf = g.files && g.files[GIST_STATE_FILE];
+    if (sf && sf.raw_url) CFG.stateUrl = sf.raw_url;
+    var lf = g.files && g.files[GIST_LOG_FILE];
+    if (lf && lf.raw_url) CFG.logUrl = lf.raw_url;
+    saveCfg();
+  } catch (e) {}
+}
+
 function syncNow(silent) {
   if (syncBusy) return;
   if (!canWrite()) {
@@ -539,27 +597,23 @@ function syncNow(silent) {
   }
   var pending = loadPending();
   if (!pending.length) {
-    if (canWrite()) {
-      syncBusy = true;
-      gistWrite(
-        CFG.gistState,
-        GIST_STATE_FILE,
-        JSON.stringify(buildSnapshot(S.transactions)),
-      )
-        .then(function () {
-          syncBusy = false;
-          renderSyncStatus();
-          if (!silent) toast("Alles synchron ✓", "ok");
-        })
-        .catch(function () {
-          syncBusy = false;
-          renderSyncStatus();
-          if (!silent) toast("Sync fehlgeschlagen", "err");
-        });
-      return;
-    }
-    if (!silent) toast("Alles synchron ✓", "ok");
-    renderSyncStatus();
+    syncBusy = true;
+    gistWrite(
+      CFG.gistState,
+      GIST_STATE_FILE,
+      JSON.stringify(buildSnapshot(S.transactions)),
+    )
+      .then(function (g) {
+        adoptUrls(g);
+        syncBusy = false;
+        syncLastError = "";
+        renderSyncStatus();
+        if (!silent) toast("Alles synchron ✓", "ok");
+      })
+      .catch(function (e) {
+        syncBusy = false;
+        syncFail(e);
+      });
     return;
   }
   syncBusy = true;
@@ -594,9 +648,11 @@ function syncNow(silent) {
         ),
       ]);
     })
-    .then(function () {
+    .then(function (res) {
       syncBusy = false;
       touchMutation();
+      adoptUrls(res && res[0]);
+      adoptUrls(res && res[1]);
       savePending([]);
       S.transactions = merged;
       applyFinances();
@@ -606,13 +662,13 @@ function syncNow(silent) {
       renderCart();
       updateSelBar();
       updateDebtBox();
+      syncLastError = "";
       renderSyncStatus();
-      toast("Sync erfolgreich ✓", "ok");
+      if (!silent) toast("Sync erfolgreich ✓", "ok");
     })
-    .catch(function () {
+    .catch(function (e) {
       syncBusy = false;
-      renderSyncStatus();
-      if (!silent) toast("Sync fehlgeschlagen", "err");
+      syncFail(e);
     });
 }
 
@@ -1185,9 +1241,11 @@ function runAbrechnung() {
         ),
       ]);
     })
-    .then(function () {
+    .then(function (res) {
       abrBusy = false;
       touchMutation();
+      adoptUrls(res && res[0]);
+      adoptUrls(res && res[1]);
       savePending([]);
       S.transactions = consolidated;
       applyFinances();
@@ -1200,9 +1258,12 @@ function runAbrechnung() {
       renderSyncStatus();
       toast("Abrechnung erstellt & Log konsolidiert ✓", "ok");
     })
-    .catch(function () {
+    .catch(function (e) {
       abrBusy = false;
-      toast("Abrechnung fehlgeschlagen", "err");
+      syncLastError = e && e.message ? e.message : String(e || "unbekannt");
+      console.warn("Vereinskasse: Abrechnung fehlgeschlagen:", e);
+      renderSyncStatus();
+      toast("Abrechnung fehlgeschlagen (" + syncLastError + ")", "err");
     });
 }
 
