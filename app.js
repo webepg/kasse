@@ -12,7 +12,9 @@ try {
     cart = JSON.parse(_c);
     if (!Array.isArray(cart)) cart = [];
   }
-} catch (e) { cart = []; }
+} catch (e) {
+  cart = [];
+}
 var selId = null;
 var isAdmin = false;
 var pendingAction = null;
@@ -495,7 +497,7 @@ function syncNow(silent) {
       gistWrite(
         CFG.gistState,
         GIST_STATE_FILE,
-        JSON.stringify(buildSnapshot(S.transactions))
+        JSON.stringify(buildSnapshot(S.transactions)),
       )
         .then(function () {
           syncBusy = false;
@@ -615,7 +617,7 @@ function renderPlayers() {
       (od ? " overdue" : "") +
       '" onclick="selPlayer(\'' +
       p.id +
-      '\')">';
+      "')\">";
     html += '<div style="flex:1;min-width:0;">';
     html += '<div class="pl-name">' + esc(p.name) + "</div>";
     if (od) html += '<span class="overdue-tag">ÜBERFÄLLIG</span>';
@@ -804,7 +806,7 @@ function renderProdGrid() {
     html +=
       '<div class="prod-btn" onclick="addToCart(\'' +
       p.id +
-      '\')">' +
+      "')\">" +
       '<span class="prod-nm">' +
       esc(p.name) +
       "</span>" +
@@ -884,7 +886,9 @@ function removeFromCart(id, custom) {
 
 function clearCart() {
   cart = [];
-  try { localStorage.removeItem("vk5_cart"); } catch (e) {}
+  try {
+    localStorage.removeItem("vk5_cart");
+  } catch (e) {}
   renderCart();
 }
 
@@ -917,7 +921,7 @@ function renderCart() {
         "</span>" +
         '<button class="cart-del" onclick="removeFromCart(\'' +
         c.id +
-        '\',' +
+        "'," +
         c.custom +
         ')">✕</button>' +
         "</div>";
@@ -932,7 +936,9 @@ function renderCart() {
     badge.style.display = n ? "inline-block" : "none";
     badge.textContent = n;
   }
-  try { localStorage.setItem("vk5_cart", JSON.stringify(cart)); } catch (e) {}
+  try {
+    localStorage.setItem("vk5_cart", JSON.stringify(cart));
+  } catch (e) {}
 }
 
 function doPay() {
@@ -983,7 +989,9 @@ function doPay() {
     );
   else toast(fmt(total) + " aufgeschrieben für " + p.name, "ok");
   cart = [];
-  try { localStorage.removeItem("vk5_cart"); } catch (e) {}
+  try {
+    localStorage.removeItem("vk5_cart");
+  } catch (e) {}
   renderCart();
   updateSelBar();
   updateDebtBox();
@@ -1151,7 +1159,7 @@ function renderAdminContent() {
       debtStr +
       '<button class="btn btn-ghost btn-sm" onclick="confirmAustreten(\'' +
       p.id +
-      '\')">Austreten</button>' +
+      "')\">Austreten</button>" +
       "</span></div>" +
       '<div id="confirm-' +
       p.id +
@@ -1162,10 +1170,10 @@ function renderAdminContent() {
       '<span style="display:flex;gap:6px;margin-top:6px;">' +
       '<button class="btn btn-red btn-sm" onclick="removePlayer(\'' +
       p.id +
-      '\')">✓ Ja, austreten</button>' +
+      "')\">✓ Ja, austreten</button>" +
       '<button class="btn btn-ghost btn-sm" onclick="cancelAustreten(\'' +
       p.id +
-      '\')">Abbrechen</button>' +
+      "')\">Abbrechen</button>" +
       "</span></div>";
   }
   if (hasInactive) {
@@ -1181,7 +1189,7 @@ function renderAdminContent() {
         ' <span style="font-size:11px;color:var(--gray);">(inaktiv)</span></span>' +
         '<button class="btn btn-ghost btn-sm" onclick="reactivatePlayer(\'' +
         p.id +
-        '\')">Reaktivieren</button>' +
+        "')\">Reaktivieren</button>" +
         "</div>";
     }
   }
@@ -1202,7 +1210,7 @@ function renderAdminContent() {
       "</span>" +
       '<button class="btn btn-ghost btn-sm" onclick="removeProduct(\'' +
       p.id +
-      '\')">✕</button>' +
+      "')\">✕</button>" +
       "</span></div>";
   }
   document.getElementById("adminPrList").innerHTML = prh;
