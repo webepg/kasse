@@ -732,7 +732,7 @@ function renderPlayers() {
       html +=
         '<span style="font-family:Oswald,sans-serif;font-weight:600;font-size:14px;color:var(--success);">' +
         fmt(Math.abs(p.debt)) +
-        " G</span>";
+        "</span>";
     else html += '<span class="pl-debt-none">–</span>';
     html += "</div>";
   }
@@ -981,10 +981,12 @@ function addVarItem() {
   }
   var nm = document.getElementById("varNm").value.trim();
   var pr = parseFloat(document.getElementById("varPr").value);
-  if (!nm || isNaN(pr) || pr === 0) {
-    toast("Bezeichnung und Betrag eingeben", "err");
+  if (isNaN(pr) || pr === 0) {
+    toast("Betrag eingeben", "err");
     return;
   }
+  // Ohne Bezeichnung wird "Freie Buchung" als Name übernommen
+  if (!nm) nm = "Freie Buchung";
   cart.push({
     id: uid(),
     name: nm,
