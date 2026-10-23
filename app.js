@@ -825,19 +825,32 @@ function updateDebtBox() {
 function renderDebtDetail() {
   var el = document.getElementById("debtDetail");
   if (!el) return;
-  var show = false;
-  if (selId) {
-    var p = getPlayer(selId);
-    show = !!p && p.debt > 0;
-  }
-  if (!show) {
+  var p = selId ? getPlayer(selId) : null;
+  if (!p || !p.debt) {
     el.style.display = "none";
     return;
   }
-  var rows = [];
+  // Buchungen seit der letzten Barzahlung sammeln. Negative Beträge
+  // (Guthaben) zählen ebenfalls zur Historie, auch wenn sie als bezahlt
+  // markiert sind.
+  var all = [];
   for (var i = 0; i < S.transactions.length; i++) {
-    var t = S.transactions[i];
-    if (t.playerId === p.id && t.type === "getraenke" && !t.paid) rows.push(t);
+    var tx = S.transactions[i];
+    if (tx.playerId === p.id && tx.type === "getraenke") all.push(tx);
+  }
+  all.sort(function (a, b) {
+    return new Date(a.date) - new Date(b.date);
+  });
+  var start = 0;
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].settled) start = i + 1;
+  }
+  var rows = [];
+  for (var i = start; i < all.length; i++) {
+    var t = all[i];
+    if (t.settled) continue;
+    if (t.amount > 0 && t.paid) continue;
+    rows.push(t);
   }
   rows.sort(function (a, b) {
     return new Date(b.date) - new Date(a.date);
@@ -860,11 +873,16 @@ function renderDebtDetail() {
       fmtDate(t.date) +
       "</div>" +
       "</div>" +
-      '<span class="dd-amt">' +
+      '<span class="dd-amt"' +
+      (t.amount < 0 ? ' style="color:var(--success);"' : "") +
+      ">" +
       fmt(t.amount) +
       "</span>" +
       "</div>";
   }
+  var title = document.getElementById("debtDetailTitle");
+  if (title)
+    title.textContent = p.debt > 0 ? "Offene Schulden" : "Guthaben-Historie";
   el.style.display = "block";
   document.getElementById("debtDetailList").innerHTML = html;
   document.getElementById("debtDetailTotal").textContent = fmt(total);
