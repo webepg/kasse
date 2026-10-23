@@ -871,10 +871,12 @@ function renderDebtDetail() {
 }
 
 function settlePlayer() {
-  if (!isAdmin) {
-    openAdminForAction("zahlung");
-    return;
-  }
+  // Admin-PIN bei jeder Zahlung erneut abfragen – auch wenn er zuvor
+  // schon einmal eingegeben wurde.
+  openAdminForAction("zahlung");
+}
+
+function doSettlePlayer() {
   if (!canWrite()) {
     toast("Keine Schreibrechte – Sync im Admin einrichten", "err");
     return;
@@ -1162,8 +1164,7 @@ function checkPin() {
       closeModal("adminModal");
       var action = pendingAction;
       pendingAction = null;
-      isAdmin = true;
-      if (action === "zahlung") settlePlayer();
+      if (action === "zahlung") doSettlePlayer();
       else if (action === "abrechnung") runAbrechnung();
     } else {
       renderAdminContent();
